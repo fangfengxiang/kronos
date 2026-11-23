@@ -62,6 +62,8 @@ type processLog struct {
 	Event          string `json:"event"`
 	Operation      string `json:"operation"`
 	RequestID      string `json:"request_id"`
+	TraceID        string `json:"trace_id"`
+	SpanID         string `json:"span_id"`
 	Status         string `json:"status"`
 	Reason         string `json:"reason"`
 	Error          string `json:"error"`

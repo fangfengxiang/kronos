@@ -17,6 +17,7 @@ import (
 	"github.com/fangfengxiang/kronos/framework/log"
 	"github.com/fangfengxiang/kronos/framework/rpc"
 	"github.com/fangfengxiang/kronos/infra/blades"
+	"github.com/fangfengxiang/kronos/infra/oteltrace"
 	"github.com/fangfengxiang/kronos/infra/prometheus"
 )
 
@@ -32,7 +33,7 @@ func main() {
 	}
 }
 
-func run(ctx context.Context, args []string, logger *slog.Logger) error {
+func run(ctx context.Context, args []string, logger *slog.Logger) (runError error) {
 	flags := flag.NewFlagSet("assistant", flag.ContinueOnError)
 	configPath := flags.String(configPathFlag, "", "startup JSON config file")
 	httpAddress := flags.String("http", "127.0.0.1:8080", "HTTP listen address")
@@ -40,6 +41,7 @@ func run(ctx context.Context, args []string, logger *slog.Logger) error {
 	sseAddress := flags.String("sse", "", "SSE listen address (empty disables SSE)")
 	microV2Address := flags.String("micro-v2", "", "go-micro v2 listen address (empty disables compatibility)")
 	metricsEnabled := flags.Bool("metrics", false, "expose application metrics on the HTTP listener")
+	traceEndpoint := flags.String("trace-endpoint", "", "OTLP HTTP trace endpoint URL (empty disables tracing)")
 	shutdownTimeout := flags.Duration("shutdown-timeout", 5*time.Second, "time allowed for graceful shutdown")
 	reloadPIDFile := flags.String(reloadPIDFileFlag, "", "PID file for SIGHUP reload (empty disables reload)")
 	reloadStartupTimeout := flags.Duration(reloadTimeoutFlag, 30*time.Second, "time allowed for a replacement to become ready")
@@ -115,6 +117,23 @@ func run(ctx context.Context, args []string, logger *slog.Logger) error {
 	if err != nil {
 		return err
 	}
+	defer func() {
+		if runError == nil {
+			logger.InfoContext(ctx, "assistant stopped", "event", "app_stopped")
+		}
+	}()
+	if *traceEndpoint != "" {
+		tracer, err := oteltrace.New(ctx, oteltrace.Config{ServiceName: "assistant", Endpoint: *traceEndpoint})
+		if err != nil {
+			return err
+		}
+		defer func() {
+			flushContext, cancel := context.WithTimeout(context.WithoutCancel(ctx), 2*time.Second)
+			defer cancel()
+			runError = errors.Join(runError, tracer.Close(flushContext))
+		}()
+		service.startTrace = tracer.StartRequest
+	}
 	for _, binding := range bindings {
 		logger.InfoContext(ctx, "assistant listener starting", "event", "listener_starting", "listener", binding.Name, "address", binding.Address)
 	}
@@ -132,9 +151,6 @@ func run(ctx context.Context, args []string, logger *slog.Logger) error {
 	} else {
 		err = application.Run(ctx)
 	}
-	if err == nil {
-		logger.InfoContext(ctx, "assistant stopped", "event", "app_stopped")
-	}
 	return err
 }
 
@@ -144,27 +160,28 @@ type admittingService struct {
 	stream        assistant.StreamService
 	logger        *slog.Logger
 	recordMetrics func(operation string, failed bool, duration time.Duration)
+	startTrace    func(context.Context, string) (context.Context, func(bool))
 }
 
 func (service admittingService) Run(ctx context.Context, request *assistant.RunRequest) (*assistant.RunResponse, error) {
-	startedAt := time.Now()
+	ctx, observation := service.beginRequest(ctx, "Run")
 	if err := service.checkReadiness(); err != nil {
-		service.recordRequestResult(ctx, "Run", startedAt, err)
+		service.recordRequestResult(ctx, observation, err)
 		return nil, err
 	}
 	response, err := service.next.Run(ctx, request)
-	service.recordRequestResult(ctx, "Run", startedAt, err)
+	service.recordRequestResult(ctx, observation, err)
 	return response, err
 }
 
 func (service admittingService) StreamRun(ctx context.Context, request *assistant.StreamRunRequest, emit func(string) error) error {
-	startedAt := time.Now()
+	ctx, observation := service.beginRequest(ctx, "StreamRun")
 	if err := service.checkReadiness(); err != nil {
-		service.recordRequestResult(ctx, "StreamRun", startedAt, err)
+		service.recordRequestResult(ctx, observation, err)
 		return err
 	}
 	err := service.stream.StreamRun(ctx, request, emit)
-	service.recordRequestResult(ctx, "StreamRun", startedAt, err)
+	service.recordRequestResult(ctx, observation, err)
 	return err
 }
 

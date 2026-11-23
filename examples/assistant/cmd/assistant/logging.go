@@ -9,10 +9,27 @@ import (
 	"github.com/fangfengxiang/kronos/framework/rpc"
 )
 
-func (service admittingService) recordRequestResult(ctx context.Context, operation string, startedAt time.Time, err error) {
-	duration := time.Since(startedAt)
+type requestObservation struct {
+	operation  string
+	startedAt  time.Time
+	finishSpan func(bool)
+}
+
+func (service admittingService) beginRequest(ctx context.Context, operation string) (context.Context, requestObservation) {
+	observation := requestObservation{operation: operation, startedAt: time.Now()}
+	if service.startTrace != nil {
+		ctx, observation.finishSpan = service.startTrace(ctx, operation)
+	}
+	return ctx, observation
+}
+
+func (service admittingService) recordRequestResult(ctx context.Context, observation requestObservation, err error) {
+	duration := time.Since(observation.startedAt)
+	if observation.finishSpan != nil {
+		observation.finishSpan(err != nil)
+	}
 	if service.recordMetrics != nil {
-		service.recordMetrics(operation, err != nil, duration)
+		service.recordMetrics(observation.operation, err != nil, duration)
 	}
 	level := slog.LevelInfo
 	status, reason := "OK", ""
@@ -32,7 +49,7 @@ func (service admittingService) recordRequestResult(ctx context.Context, operati
 	}
 	attributes := []slog.Attr{
 		slog.String("event", "request_finished"),
-		slog.String("operation", operation),
+		slog.String("operation", observation.operation),
 		slog.String("status", status),
 		slog.Int64("duration_us", duration.Microseconds()),
 	}

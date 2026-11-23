@@ -6,6 +6,7 @@ import (
 
 	"github.com/fangfengxiang/kronos/framework/localization"
 	"github.com/fangfengxiang/kronos/framework/request"
+	"github.com/fangfengxiang/kronos/infra/oteltrace"
 	"github.com/go-kratos/kratos/v3/middleware"
 	"github.com/go-kratos/kratos/v3/transport"
 	"google.golang.org/grpc/metadata"
@@ -47,4 +48,5 @@ func setOutgoingRequest(ctx context.Context, set func(string, string)) {
 	if preferences := localization.AcceptLanguage(ctx); len(preferences) != 0 {
 		set(localization.AcceptLanguageHeader, strings.Join(preferences, ","))
 	}
+	oteltrace.Propagate(ctx, set)
 }
