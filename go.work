@@ -15,6 +15,7 @@ use (
 	./infra/microv2
 	./infra/oteltrace
 	./infra/prometheus
+	./infra/runtimeprofile
 	./platform/protogen
 	./platform/verify
 )

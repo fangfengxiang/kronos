@@ -18,17 +18,20 @@ import (
 
 func TestAssistantReloadKeepsAllListeners(t *testing.T) {
 	binary := buildAssistant(t)
-	addresses := localAddresses(t, 4)
+	addresses := localAddresses(t, 5)
 	httpAddress, grpcAddress, sseAddress, microAddress := addresses[0], addresses[1], addresses[2], addresses[3]
 	httpEndpoint := "http://" + httpAddress
+	profileAddress := addresses[4]
+	profileEndpoint := "http://" + profileAddress + "/debug/pprof/goroutine"
 	stateDirectory := t.TempDir()
 	pidFile := filepath.Join(stateDirectory, "assistant.pid")
 	configPath := filepath.Join(stateDirectory, "assistant.json")
 	startupOptions := map[string]string{
-		"http":     httpAddress,
-		"grpc":     grpcAddress,
-		"sse":      sseAddress,
-		"micro-v2": microAddress,
+		"http":            httpAddress,
+		"grpc":            grpcAddress,
+		"sse":             sseAddress,
+		"micro-v2":        microAddress,
+		"runtime-profile": profileAddress,
 	}
 	writeAssistantConfig(t, configPath, startupOptions)
 	logFile, err := os.Create(filepath.Join(stateDirectory, "assistant.log"))
@@ -87,6 +90,7 @@ func TestAssistantReloadKeepsAllListeners(t *testing.T) {
 		t.Fatalf("failed replacement published PID %d", pid)
 	}
 	assertAssistantListeners(t, ctx, httpAddress, grpcAddress, sseAddress, microAddress)
+	assertRuntimeProfile(t, ctx, profileEndpoint, http.StatusOK)
 
 	if err := os.Rename(workingBinary, binary); err != nil {
 		t.Fatal(err)
@@ -108,6 +112,7 @@ func TestAssistantReloadKeepsAllListeners(t *testing.T) {
 		t.Fatalf("invalid candidate configuration published PID %d", pid)
 	}
 	assertAssistantListeners(t, ctx, httpAddress, grpcAddress, sseAddress, microAddress)
+	assertRuntimeProfile(t, ctx, profileEndpoint, http.StatusOK)
 
 	delete(startupOptions, "unused-option")
 	writeAssistantConfig(t, configPath, startupOptions)
@@ -127,6 +132,7 @@ func TestAssistantReloadKeepsAllListeners(t *testing.T) {
 		t.Fatalf("replacement PID = %d, initial PID = %d", replacementPID, initialPID)
 	}
 	assertAssistantListeners(t, ctx, httpAddress, grpcAddress, sseAddress, microAddress)
+	assertRuntimeProfile(t, ctx, profileEndpoint, http.StatusOK)
 
 	if err := syscall.Kill(replacementPID, syscall.SIGTERM); err != nil {
 		t.Fatal(err)

@@ -18,6 +18,8 @@
 
 Assistant 候选启动时重新读取 `-config` 路径。文件读取或校验失败时，候选在装配监听器前退出，当前进程继续使用已加载的配置。候选成功就绪后发布新 PID。[启动配置文件](config-file.md)
 
+启用 `-runtime-profile` 时，独立回环监听与业务监听一起参与就绪确认和接力。[按需运行时快照](runtime-profiles.md)
+
 ## 平台支持
 
 | 平台 | tableflip v1.2.3 与 Kronos 重载 | 仓库验收 |

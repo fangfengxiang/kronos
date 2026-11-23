@@ -40,8 +40,9 @@ func TestAssistantProcessShutsDownOnSIGTERM(t *testing.T) {
 		t.Skip("the operating system does not deliver SIGTERM to child processes")
 	}
 	binary := buildAssistant(t)
-	addresses := localAddresses(t, 4)
+	addresses := localAddresses(t, 5)
 	httpAddress, grpcAddress, sseAddress, microAddress := addresses[0], addresses[1], addresses[2], addresses[3]
+	profileAddress := addresses[4]
 	traceEndpoint, capturedTraces := startTraceCollector(t)
 	configPath := filepath.Join(t.TempDir(), "assistant.json")
 	writeAssistantConfig(t, configPath, map[string]string{
@@ -51,6 +52,7 @@ func TestAssistantProcessShutsDownOnSIGTERM(t *testing.T) {
 		"micro-v2":         microAddress,
 		"metrics":          "true",
 		"trace-endpoint":   traceEndpoint,
+		"runtime-profile":  profileAddress,
 		"shutdown-timeout": "2s",
 	})
 	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
@@ -80,6 +82,10 @@ func TestAssistantProcessShutsDownOnSIGTERM(t *testing.T) {
 	if !probeOK(ctx, httpEndpoint+"/livez") {
 		t.Fatal("liveness probe did not return HTTP 200")
 	}
+	assertRuntimeProfile(t, ctx, "http://"+profileAddress+"/debug/pprof/heap", http.StatusOK)
+	assertRuntimeProfile(t, ctx, "http://"+profileAddress+"/debug/pprof/goroutine", http.StatusOK)
+	assertRuntimeProfile(t, ctx, "http://"+profileAddress+"/readyz", http.StatusNotFound)
+	assertRuntimeProfile(t, ctx, httpEndpoint+"/debug/pprof/heap", http.StatusNotFound)
 	const callerID = "assistant-process_01"
 	assertAssistantListeners(t, request.WithID(ctx, callerID), httpAddress, grpcAddress, sseAddress, microAddress)
 	assertAggregatedMetrics(t, ctx, httpEndpoint)

@@ -19,6 +19,7 @@ import (
 	"github.com/fangfengxiang/kronos/infra/blades"
 	"github.com/fangfengxiang/kronos/infra/oteltrace"
 	"github.com/fangfengxiang/kronos/infra/prometheus"
+	"github.com/fangfengxiang/kronos/infra/runtimeprofile"
 )
 
 func main() {
@@ -42,6 +43,7 @@ func run(ctx context.Context, args []string, logger *slog.Logger) (runError erro
 	microV2Address := flags.String("micro-v2", "", "go-micro v2 listen address (empty disables compatibility)")
 	metricsEnabled := flags.Bool("metrics", false, "expose application metrics on the HTTP listener")
 	traceEndpoint := flags.String("trace-endpoint", "", "OTLP HTTP trace endpoint URL (empty disables tracing)")
+	profileAddress := flags.String("runtime-profile", "", "loopback runtime profile listen address (empty disables profiling)")
 	shutdownTimeout := flags.Duration("shutdown-timeout", 5*time.Second, "time allowed for graceful shutdown")
 	reloadPIDFile := flags.String(reloadPIDFileFlag, "", "PID file for SIGHUP reload (empty disables reload)")
 	reloadStartupTimeout := flags.Duration(reloadTimeoutFlag, 30*time.Second, "time allowed for a replacement to become ready")
@@ -111,6 +113,11 @@ func run(ctx context.Context, args []string, logger *slog.Logger) (runError erro
 	if *microV2Address != "" {
 		bindings = append(bindings, app.Binding{Name: "go-micro v2", Address: *microV2Address, Build: func(listener net.Listener) (app.Server, error) {
 			return assistant.NewMicroV2Server(listener, service), nil
+		}})
+	}
+	if *profileAddress != "" {
+		bindings = append(bindings, app.Binding{Name: "runtime profiles", Address: *profileAddress, Build: func(listener net.Listener) (app.Server, error) {
+			return runtimeprofile.NewServer(listener)
 		}})
 	}
 	application, err = app.New(app.Config{ShutdownTimeout: *shutdownTimeout}, bindings...)

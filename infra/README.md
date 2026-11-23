@@ -13,3 +13,5 @@
 [`infra/oteltrace`](oteltrace) 复用 Kratos OTel tracer 与 SDK，通过标准上下文记录请求 span 并向 Collector 导出。[请求链路追踪](../docs/design/request-tracing.md)
 
 [`infra/prometheus`](prometheus) 提供独立请求计数、延迟直方图和标准 HTTP 抓取处理器。[请求指标](../docs/design/request-metrics.md)
+
+[`infra/runtimeprofile`](runtimeprofile) 在独立回环监听上提供 Go 堆采样和 goroutine 调用栈快照。[按需运行时快照](../docs/design/runtime-profiles.md)
