@@ -7,7 +7,7 @@ Kronos 的 Core 原语已可通过 Go 包使用。Assistant v1 提供一元 HTTP
 | 判断 Kronos 是否适合我的 Go 服务 | 阅读框架的责任范围与依赖方向。[项目首页](../../README.md) · [架构概览](../architecture/overview.md) |
 | 使用 Core 包 | 核对执行边界、语言选择与消息回退，运行包级单元测试和示例。[Core 首版落地设计](../design/core-v1.md) |
 | 用 Proto 声明服务并提供 gRPC 和 HTTP | 确认服务定义、HTTP 映射和生成物的权威来源。[协议与传输决定](../adr/0001-protobuf-and-transport.md) |
-| 发布一个可取消的 Agent 流 | 了解公开流事件、客户端取消和 Blades 接入边界。[Agent 流式决定](../adr/0002-agent-stream.md) |
+| 发布一个可取消的 Agent 流 | 了解公开流事件、客户端取消和确定性模型装配。[Agent 流式决定](../adr/0002-agent-stream.md) · [Blades 文本 Agent 适配](../design/blades-adapter.md) |
 | 为同一个服务提供中英文体验 | 分辨请求语言偏好、系统消息和模型生成内容，查看默认回退。[本地化决定](../adr/0003-localization.md) |
 | 按用户时区展示时刻或归档日报 | 用 `core/timezone` 解析 IANA 时区并计算当地日期。精简部署可通过 `-tags timetzdata` 内嵌规则。[Core 时区](../design/core-timezone.md) · [可运行示例](../../core/timezone/timezone_test.go) |
 | 在本机复现端到端测试 | 按纵切方案核对计划中的镜像、探针、容器退出与 CI 证据。[首条纵切](../design/first-vertical-slice.md) |
@@ -55,6 +55,8 @@ response, err := client.Run(callCtx, request)
 Assistant 的空提示词支持简体中文和英文，默认英文。调用方继续按 `ERROR_REASON_INVALID_PROMPT` 处理失败。[框架语言协商](../design/framework-localization.md)
 
 ## 运行 Assistant
+
+Assistant 默认用 Blades 执行确定性文本模型。有效提示词在一元入口返回原文，在流式入口按顺序返回文本片段。启动无需模型账户或 API Key。[Blades 装配与验收](../design/blades-adapter.md)
 
 ```sh
 go run ./examples/assistant/cmd/assistant -http 127.0.0.1:8080 -grpc 127.0.0.1:9090 -shutdown-timeout 5s

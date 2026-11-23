@@ -29,7 +29,7 @@ import (
 )
 
 func TestAdmissionRejectsRequestsBeforeReady(t *testing.T) {
-	service := admittingService{ready: func() bool { return false }, next: echoService{}}
+	service := admittingService{ready: func() bool { return false }, next: agentService{}}
 	_, err := service.Run(t.Context(), &assistant.RunRequest{Prompt: "你好"})
 	var failure *rpc.Error
 	if !errors.As(err, &failure) || failure.Code != rpc.Unavailable || failure.Reason != rpc.ServiceUnavailableReason {

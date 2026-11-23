@@ -7,6 +7,7 @@ require (
 	github.com/fangfengxiang/kronos/framework/app v0.0.0
 	github.com/fangfengxiang/kronos/framework/localization v0.0.0
 	github.com/fangfengxiang/kronos/framework/rpc v0.0.0
+	github.com/fangfengxiang/kronos/infra/blades v0.0.0
 	github.com/fangfengxiang/kronos/infra/microv2 v0.0.0
 	github.com/go-kratos/kratos/v3 v3.0.0
 	google.golang.org/genproto/googleapis/api v0.0.0-20260511170946-3700d4141b60
@@ -19,12 +20,15 @@ replace (
 	github.com/fangfengxiang/kronos/framework/app => ./framework/app
 	github.com/fangfengxiang/kronos/framework/localization => ./framework/localization
 	github.com/fangfengxiang/kronos/framework/rpc => ./framework/rpc
+	github.com/fangfengxiang/kronos/infra/blades => ./infra/blades
 	github.com/fangfengxiang/kronos/infra/microv2 => ./infra/microv2
 )
 
 require (
 	github.com/cloudflare/tableflip v1.2.3 // indirect
+	github.com/go-kratos/blades v0.6.0 // indirect
 	github.com/go-playground/form/v4 v4.3.0 // indirect
+	github.com/google/jsonschema-go v0.3.0 // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/gorilla/mux v1.8.1 // indirect
 	github.com/gorilla/websocket v1.5.3 // indirect

@@ -8,15 +8,13 @@ import (
 	"net"
 	"os"
 	"os/signal"
-	"strings"
 	"syscall"
 	"time"
 
-	"github.com/fangfengxiang/kronos/core/locale"
 	"github.com/fangfengxiang/kronos/examples/assistant"
 	"github.com/fangfengxiang/kronos/framework/app"
-	"github.com/fangfengxiang/kronos/framework/localization"
 	"github.com/fangfengxiang/kronos/framework/rpc"
+	"github.com/fangfengxiang/kronos/infra/blades"
 )
 
 func main() {
@@ -50,14 +48,18 @@ func run(ctx context.Context, args []string) error {
 
 	// Run builds the bindings after application has been assigned.
 	var application *app.App
-	echo, err := newEchoService()
+	runner, err := blades.New("assistant", echoText)
+	if err != nil {
+		return err
+	}
+	agent, err := newAgentService(runner)
 	if err != nil {
 		return err
 	}
 	service := admittingService{
 		ready:  func() bool { return application.Ready() },
-		next:   echo,
-		stream: echo,
+		next:   agent,
+		stream: agent,
 	}
 	bindings := []app.Binding{
 		{
@@ -128,58 +130,6 @@ func (service admittingService) StreamRun(ctx context.Context, request *assistan
 func (service admittingService) checkReadiness() error {
 	if !service.ready() {
 		return &rpc.Error{Code: rpc.Unavailable, Reason: rpc.ServiceUnavailableReason, Message: "service is unavailable"}
-	}
-	return nil
-}
-
-type echoService struct {
-	languages *locale.Matcher
-	messages  *locale.Catalog
-}
-
-func newEchoService() (echoService, error) {
-	languages, err := locale.NewMatcher("en", "en", "zh-Hans")
-	if err != nil {
-		return echoService{}, err
-	}
-	invalidPrompt := assistant.ErrorReasonInvalidPrompt.String()
-	messages, err := locale.NewCatalog(languages, map[string]map[string]string{
-		"en":      {invalidPrompt: "prompt must not be blank"},
-		"zh-Hans": {invalidPrompt: "提示词不能为空"},
-	})
-	if err != nil {
-		return echoService{}, err
-	}
-	return echoService{languages: languages, messages: messages}, nil
-}
-
-func (service echoService) Run(ctx context.Context, request *assistant.RunRequest) (*assistant.RunResponse, error) {
-	prompt := request.GetPrompt()
-	if strings.TrimSpace(prompt) == "" {
-		reason := assistant.ErrorReasonInvalidPrompt.String()
-		tag, _ := localization.Negotiate(ctx, service.languages)
-		message, _ := service.messages.Lookup(tag, reason)
-		return nil, &rpc.Error{
-			Code:    rpc.InvalidArgument,
-			Reason:  reason,
-			Message: message.Text,
-		}
-	}
-	return &assistant.RunResponse{Text: prompt}, nil
-}
-
-func (service echoService) StreamRun(ctx context.Context, request *assistant.StreamRunRequest, emit func(string) error) error {
-	response, err := service.Run(ctx, &assistant.RunRequest{Prompt: request.GetPrompt()})
-	if err != nil {
-		return err
-	}
-	text := []rune(response.GetText())
-	split := (len(text) + 1) / 2
-	if err := emit(string(text[:split])); err != nil {
-		return err
-	}
-	if split < len(text) {
-		return emit(string(text[split:]))
 	}
 	return nil
 }

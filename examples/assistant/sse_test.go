@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"io"
+	"iter"
 	"net"
 	"net/http"
 	"strings"
@@ -12,6 +13,7 @@ import (
 	"time"
 
 	"github.com/fangfengxiang/kronos/examples/assistant"
+	"github.com/fangfengxiang/kronos/infra/blades"
 )
 
 type testStream func(context.Context, *assistant.StreamRunRequest, func(string) error) error
@@ -28,19 +30,29 @@ func TestSSEFailureAndDisconnect(t *testing.T) {
 	t.Cleanup(func() { _ = listener.Close() })
 	providerFailure := errors.New("hidden provider error")
 	workStopped := make(chan error, 1)
+	runner, err := blades.New("assistant", func(ctx context.Context, prompt string) iter.Seq2[string, error] {
+		return func(yield func(string, error) bool) {
+			if prompt == "fail early" {
+				yield("", providerFailure)
+				return
+			}
+			if !yield("首段", nil) {
+				return
+			}
+			if prompt == "fail late" {
+				yield("", providerFailure)
+				return
+			}
+			<-ctx.Done()
+			workStopped <- ctx.Err()
+			yield("", ctx.Err())
+		}
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
 	server := assistant.NewSSEServer(listener, testStream(func(ctx context.Context, request *assistant.StreamRunRequest, emit func(string) error) error {
-		if request.GetPrompt() == "fail early" {
-			return providerFailure
-		}
-		if err := emit("首段"); err != nil {
-			return err
-		}
-		if request.GetPrompt() == "fail late" {
-			return providerFailure
-		}
-		<-ctx.Done()
-		workStopped <- ctx.Err()
-		return ctx.Err()
+		return runner.Stream(ctx, request.GetPrompt(), emit)
 	}))
 	serveResult := make(chan error, 1)
 	go func() { serveResult <- server.Start(context.Background()) }()
@@ -85,7 +97,7 @@ func TestSSEFailureAndDisconnect(t *testing.T) {
 		bodyText := string(body)
 		if err != nil || response.StatusCode != test.status || !strings.Contains(bodyText, "ERROR_REASON_RUN_FAILED") ||
 			strings.Contains(bodyText, providerFailure.Error()) || strings.Contains(bodyText, `"completed"`) ||
-			strings.Contains(bodyText, "event: error") != test.streamError {
+			strings.Contains(bodyText, "event: error") != test.streamError || strings.Contains(bodyText, "首段") != test.streamError {
 			t.Fatalf("SSE failure = %d %s (%v)", response.StatusCode, body, err)
 		}
 	}

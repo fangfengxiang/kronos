@@ -1,6 +1,6 @@
 # ADR 0002 Agent 运行与流式契约
 
-**状态。** 采纳独立定义 Agent 流以及用确定性替身验证。gRPC 与 SSE 的事件和终止状态见 [Assistant v1 协议设计](../design/assistant-protocol.md)。
+**状态。** 采纳独立定义 Agent 流以及用确定性替身验证。执行边界见 [Blades 文本 Agent 适配](../design/blades-adapter.md)，gRPC 与 SSE 的事件和终止状态见 [Assistant v1 协议设计](../design/assistant-protocol.md)。
 
 ## 背景
 
