@@ -10,5 +10,6 @@
 | [0006 进程级优雅重载](0006-graceful-reload.md) | TCP 监听继承、候选就绪与旧进程排空 |
 | [0007 Consul 实例注册与健康地址订阅](0007-consul-service-registration.md) | 注册生命周期、健康视图和空快照 |
 | [0008 Kafka 确认与消费位点](0008-kafka-delivery-and-offsets.md) | 发布确认、消费位点和重复投递 |
+| [0009 注册发现与协议地址](0009-discovery-protocols.md) | 双协议实例记录、发现及 etcd 租约 |
 
 决定优先写清使用者、备选方案、适用前提和验收。尚待确认的格式或默认值在各记录中标明，实施时以可复查的证据更新状态。

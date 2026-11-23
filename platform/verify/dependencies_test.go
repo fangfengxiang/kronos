@@ -34,6 +34,8 @@ func TestAllowedImport(t *testing.T) {
 		{"text backend binding to Kratos", textBackend + "/internal/binding", kratos, true},
 		{"text backend command to Kafka", textBackend + "/cmd/textbackend", "github.com/twmb/franz-go/pkg/kgo", false},
 		{"text backend command to MongoDB", textBackend + "/cmd/textbackend", "go.mongodb.org/mongo-driver/v2/mongo", false},
+		{"business to etcd SDK", textBackend + "/cmd/textbackend", "go.etcd.io/etcd/client/v3", false},
+		{"etcd adapter to lease API", kronosModule + "/infra/etcd", "go.etcd.io/etcd/api/v3/v3rpc/rpctypes", true},
 		{"assistant command to telemetry", assistant + "/cmd/assistant", "go.opentelemetry.io/otel/trace", false},
 		{"private transport does not own MongoDB", textBackend + "/internal/binding", "go.mongodb.org/mongo-driver/v2/mongo", false},
 		{"Kafka adapter subpackage", kronosModule + "/infra/kafka/internal/client", "github.com/twmb/franz-go/pkg/kgo", true},

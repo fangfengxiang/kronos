@@ -1,4 +1,4 @@
-//go:build interop
+//go:build interop || etcd_interop
 
 package microv2_test
 
@@ -21,11 +21,26 @@ const upstreamModule = "github.com/micro/go-micro/v2"
 
 func buildUpstreamFixture(t *testing.T, version string) string {
 	t.Helper()
+	return buildUpstreamCommand(t, version, ".")
+}
+
+func buildUpstreamCommand(t *testing.T, version, packagePath string) string {
+	t.Helper()
 	directory := t.TempDir()
 	if err := os.CopyFS(directory, os.DirFS("testdata")); err != nil {
 		t.Fatalf("copy upstream fixture: %v", err)
 	}
-	manifest := fmt.Sprintf("module example.com/kronos-microv2-interop\n\ngo 1.25.0\n\nrequire (\n %s %s\n golang.org/x/net v0.54.0\n)\n", upstreamModule, version)
+	// The v2.0.0 etcd registry uses capnslog through its pre-module etcd client.
+	manifest := fmt.Sprintf(`module example.com/kronos-microv2-interop
+
+go 1.25.0
+
+require (
+ github.com/coreos/pkg v0.0.0-20180928190104-399ea9e2e55f
+ %s %s
+ golang.org/x/net v0.54.0
+)
+`, upstreamModule, version)
 	if err := os.WriteFile(filepath.Join(directory, "go.mod"), []byte(manifest), 0600); err != nil {
 		t.Fatal(err)
 	}
@@ -49,7 +64,7 @@ func buildUpstreamFixture(t *testing.T, version string) string {
 	if runtime.GOOS == "windows" {
 		binary += ".exe"
 	}
-	fixtureGo(t, ctx, directory, "build", "-mod=mod", "-o", binary, ".")
+	fixtureGo(t, ctx, directory, "build", "-mod=mod", "-o", binary, packagePath)
 	return binary
 }
 
