@@ -29,13 +29,14 @@ func main() {
 
 func run(ctx context.Context, args []string) error {
 	flags := flag.NewFlagSet("assistant", flag.ContinueOnError)
+	configPath := flags.String(configPathFlag, "", "startup JSON config file")
 	httpAddress := flags.String("http", "127.0.0.1:8080", "HTTP listen address")
 	grpcAddress := flags.String("grpc", "127.0.0.1:9090", "gRPC listen address")
 	sseAddress := flags.String("sse", "", "SSE listen address (empty disables SSE)")
 	microV2Address := flags.String("micro-v2", "", "go-micro v2 listen address (empty disables compatibility)")
 	shutdownTimeout := flags.Duration("shutdown-timeout", 5*time.Second, "time allowed for graceful shutdown")
-	reloadPIDFile := flags.String("reload-pid-file", "", "PID file for SIGHUP reload (empty disables reload)")
-	reloadStartupTimeout := flags.Duration("reload-timeout", 30*time.Second, "time allowed for a replacement to become ready")
+	reloadPIDFile := flags.String(reloadPIDFileFlag, "", "PID file for SIGHUP reload (empty disables reload)")
+	reloadStartupTimeout := flags.Duration(reloadTimeoutFlag, 30*time.Second, "time allowed for a replacement to become ready")
 	if err := flags.Parse(args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
 			return nil
@@ -44,6 +45,11 @@ func run(ctx context.Context, args []string) error {
 	}
 	if flags.NArg() != 0 {
 		return errors.New("unexpected positional arguments")
+	}
+	if *configPath != "" {
+		if err := applyConfigFile(flags, *configPath); err != nil {
+			return err
+		}
 	}
 
 	// Run builds the bindings after application has been assigned.

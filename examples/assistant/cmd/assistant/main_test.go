@@ -44,10 +44,17 @@ func TestAssistantProcessShutsDownOnSIGTERM(t *testing.T) {
 	binary := buildAssistant(t)
 	addresses := localAddresses(t, 4)
 	httpAddress, grpcAddress, sseAddress, microAddress := addresses[0], addresses[1], addresses[2], addresses[3]
+	configPath := filepath.Join(t.TempDir(), "assistant.json")
+	writeAssistantConfig(t, configPath, map[string]string{
+		"http":             "127.0.0.1:0",
+		"grpc":             grpcAddress,
+		"sse":              sseAddress,
+		"micro-v2":         microAddress,
+		"shutdown-timeout": "2s",
+	})
 	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
 	defer cancel()
-	command := exec.CommandContext(ctx, binary, "-http", httpAddress, "-grpc", grpcAddress,
-		"-sse", sseAddress, "-micro-v2", microAddress, "-shutdown-timeout", "2s")
+	command := exec.CommandContext(ctx, binary, "-config", configPath, "-http", httpAddress)
 	var output bytes.Buffer
 	command.Stdout, command.Stderr = &output, &output
 	if err := command.Start(); err != nil {

@@ -20,6 +20,7 @@ Kronos 是一个面向全球应用的、协议优先、云原生、AI 原生、�
 | [框架语言协商](docs/design/framework-localization.md) | 说明 HTTP、gRPC 和 SSE 的语言偏好与文案回退 |
 | [Blades 文本 Agent 适配](docs/design/blades-adapter.md) | 说明模型装配、文本增量、失败与取消 |
 | [应用装配与关停](docs/design/app-lifecycle.md) | 说明监听器所有权、探针与关停验收 |
+| [启动配置文件](docs/design/config-file.md) | 说明启动参数、文件快照和候选进程重新读取行为 |
 | [应用优雅重载](docs/design/graceful-reload.md) | 说明进程接力、候选就绪和旧进程排空 |
 | [SSE 与 go-micro v2 监听](docs/design/additional-listeners.md) | 说明独立监听、流事件和旧协议互通范围 |
 | [架构决策](docs/adr/README.md) | 记录已对齐的方向、取舍及验证要求 |

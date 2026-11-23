@@ -22,6 +22,14 @@ func TestAssistantReloadKeepsAllListeners(t *testing.T) {
 	httpEndpoint := "http://" + httpAddress
 	stateDirectory := t.TempDir()
 	pidFile := filepath.Join(stateDirectory, "assistant.pid")
+	configPath := filepath.Join(stateDirectory, "assistant.json")
+	startupOptions := map[string]string{
+		"http":     httpAddress,
+		"grpc":     grpcAddress,
+		"sse":      sseAddress,
+		"micro-v2": microAddress,
+	}
+	writeAssistantConfig(t, configPath, startupOptions)
 	logFile, err := os.Create(filepath.Join(stateDirectory, "assistant.log"))
 	if err != nil {
 		t.Fatal(err)
@@ -29,8 +37,7 @@ func TestAssistantReloadKeepsAllListeners(t *testing.T) {
 	defer logFile.Close()
 	ctx, cancel := context.WithTimeout(t.Context(), 20*time.Second)
 	defer cancel()
-	command := exec.CommandContext(ctx, binary, "-http", httpAddress, "-grpc", grpcAddress,
-		"-sse", sseAddress, "-micro-v2", microAddress, "-reload-pid-file", pidFile, "-reload-timeout", "5s")
+	command := exec.CommandContext(ctx, binary, "-config", configPath, "-reload-pid-file", pidFile, "-reload-timeout", "5s")
 	command.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 	command.Stdout, command.Stderr = logFile, logFile
 	if err := command.Start(); err != nil {
@@ -78,6 +85,22 @@ func TestAssistantReloadKeepsAllListeners(t *testing.T) {
 	if err := os.Rename(workingBinary, binary); err != nil {
 		t.Fatal(err)
 	}
+	startupOptions["unused-option"] = "invalid"
+	writeAssistantConfig(t, configPath, startupOptions)
+	if err := command.Process.Signal(syscall.SIGHUP); err != nil {
+		t.Fatal(err)
+	}
+	waitForReloadCondition(t, ctx, "invalid candidate configuration reported", func() bool {
+		logs, _ := os.ReadFile(logFile.Name())
+		return strings.Contains(string(logs), `unknown option "unused-option"`) && strings.Contains(string(logs), "exit status 1")
+	})
+	if pid := readPID(pidFile); pid != initialPID {
+		t.Fatalf("invalid candidate configuration published PID %d", pid)
+	}
+	assertAssistantListeners(t, ctx, httpAddress, grpcAddress, sseAddress, microAddress)
+
+	delete(startupOptions, "unused-option")
+	writeAssistantConfig(t, configPath, startupOptions)
 	if err := command.Process.Signal(syscall.SIGHUP); err != nil {
 		t.Fatal(err)
 	}

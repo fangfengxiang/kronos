@@ -85,9 +85,29 @@ bash test/interop/microv2/verify.sh 127.0.0.1:9091
 
 SSE 的请求体使用 JSON。调用示例的 go-micro v2 服务名是 `kronos.assistant.v1.Assistant`，端点名是 `Assistant.Run`。互通脚本按版本构建官方客户端和服务端，首次运行需要访问 Go 模块代理。[监听与互通设计](../design/additional-listeners.md)
 
+### 从文件读取启动配置
+
+将监听地址和停止预算写入 `assistant.json`。键使用启动参数名，值使用字符串。
+
+```json
+{
+  "http": "127.0.0.1:8080",
+  "grpc": "127.0.0.1:9090",
+  "sse": "127.0.0.1:8081",
+  "micro-v2": "127.0.0.1:9091",
+  "shutdown-timeout": "5s"
+}
+```
+
+```sh
+go run ./examples/assistant/cmd/assistant -config ./assistant.json -http 127.0.0.1:18080
+```
+
+显式参数覆盖文件，文件缺失的键沿用默认值。文件不存在、出现未知键或生效值无效时，入口返回启动错误。[可用配置项和检查规则](../design/config-file.md)
+
 ### 优雅重载
 
-在 Linux 或 macOS 上，从稳定路径运行构建后的二进制。`-reload-pid-file` 启用 `SIGHUP` 接力，PID 文件的上级目录由部署方准备。
+在 Linux 或 macOS 上，从稳定路径运行构建后的二进制。通过命令行设置 `-reload-pid-file` 启用 `SIGHUP` 接力，并设置 `-reload-timeout` 控制候选启动预算。PID 文件的上级目录由部署方准备。
 
 Windows 上的 tableflip v1.2.3 不支持进程级重载。Windows 普通启动时省略 `-reload-pid-file`。[平台支持与验收](../design/graceful-reload.md#平台支持)
 
@@ -96,7 +116,7 @@ go build -o ./assistant-server ./examples/assistant/cmd/assistant
 ./assistant-server -reload-pid-file ./assistant.pid -reload-timeout 30s -shutdown-timeout 5s
 ```
 
-在另一终端向当前 PID 发送 `SIGHUP`。候选就绪后 PID 文件会更新。旧进程在关停预算内完成已进入业务的请求和流。[重载契约](../design/graceful-reload.md)
+在另一终端向当前 PID 发送 `SIGHUP`。候选读取同一 `-config` 路径。配置无效时原进程和 PID 文件继续使用。候选就绪后更新 PID 文件，旧进程在关停预算内完成已进入业务的请求和流。[重载契约](../design/graceful-reload.md)
 
 ```sh
 kill -HUP "$(cat ./assistant.pid)"

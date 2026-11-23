@@ -4,6 +4,8 @@
 
 Assistant 命令入口显式提供 HTTP 与 gRPC，按配置启用 SSE 与 go-micro v2 兼容监听，并持有 `SIGINT`、`SIGTERM` 的订阅。启用重载时另订阅 `SIGHUP`。`framework/app` 接收标准上下文、监听地址及关停预算。业务实现通过 `Service.Run` 提供一元调用，通过 `StreamService.StreamRun` 提供流式调用。Kratos 在私有适配内负责服务循环、标准传输与连接关停。[SSE 与 go-micro v2 监听](additional-listeners.md) · [优雅重载](graceful-reload.md)
 
+Assistant 命令在创建应用组件前读取并合并可选的启动配置，文件与参数的解析错误沿命令入口返回。[启动配置文件](config-file.md)
+
 ## 运行行为
 
 1. 每个 `App` 实例运行一次。先按声明顺序取得所有 TCP 监听器，再用它们构造服务。应用持有监听器和成功构造的服务。构造未完成时，应用限时逆序停止已交接的服务，并释放监听器。失败的构造函数负责清理尚未交接的资源。首因和清理错误由 `Run` 返回。

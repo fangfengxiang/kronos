@@ -8,6 +8,7 @@ require (
 	github.com/fangfengxiang/kronos/framework/localization v0.0.0
 	github.com/fangfengxiang/kronos/framework/rpc v0.0.0
 	github.com/fangfengxiang/kronos/infra/blades v0.0.0
+	github.com/fangfengxiang/kronos/infra/configfile v0.0.0
 	github.com/fangfengxiang/kronos/infra/microv2 v0.0.0
 	github.com/go-kratos/kratos/v3 v3.0.0
 	google.golang.org/genproto/googleapis/api v0.0.0-20260511170946-3700d4141b60
@@ -21,6 +22,7 @@ replace (
 	github.com/fangfengxiang/kronos/framework/localization => ./framework/localization
 	github.com/fangfengxiang/kronos/framework/rpc => ./framework/rpc
 	github.com/fangfengxiang/kronos/infra/blades => ./infra/blades
+	github.com/fangfengxiang/kronos/infra/configfile => ./infra/configfile
 	github.com/fangfengxiang/kronos/infra/microv2 => ./infra/microv2
 )
 

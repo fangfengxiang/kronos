@@ -9,5 +9,6 @@ use (
 	./framework/localization
 	./framework/rpc
 	./infra/blades
+	./infra/configfile
 	./infra/microv2
 )
