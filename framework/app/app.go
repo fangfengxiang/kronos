@@ -36,6 +36,18 @@ type Binding struct {
 	Build   func(net.Listener) (Server, error)
 }
 
+// Endpoint identifies one listener by its binding name and bound TCP address.
+type Endpoint struct {
+	Name    string
+	Address string
+}
+
+// ReadyHook runs after the listeners start accepting connections. An optional
+// returned function releases published resources before the servers drain,
+// including when the hook also reports an error. Both functions honor their
+// contexts.
+type ReadyHook func(context.Context, []Endpoint) (release func(context.Context) error, err error)
+
 // App owns its listeners and serving state. Construct it with New.
 type App struct {
 	shutdownTimeout time.Duration
@@ -80,11 +92,17 @@ type serveResult struct {
 // Run acquires all listeners before starting the servers. Cancellation requests
 // a graceful stop without canceling requests already admitted.
 func (application *App) Run(ctx context.Context) error {
+	return application.RunWithReadyHook(ctx, nil)
+}
+
+// RunWithReadyHook runs the application and hands the bound endpoints to hook
+// after changing readiness. A hook error triggers shutdown.
+func (application *App) RunWithReadyHook(ctx context.Context, hook ReadyHook) error {
 	if err := application.begin(ctx); err != nil {
 		return err
 	}
 	var listenerConfig net.ListenConfig
-	return application.run(ctx, runOptions{listen: listenerConfig.Listen})
+	return application.run(ctx, runOptions{listen: listenerConfig.Listen, readyHook: hook})
 }
 
 func (application *App) begin(ctx context.Context) error {
@@ -97,6 +115,7 @@ func (application *App) begin(ctx context.Context) error {
 type runOptions struct {
 	listen       func(context.Context, string, string) (net.Listener, error)
 	confirmReady func() error
+	readyHook    ReadyHook
 	onStopping   func()
 	replaced     <-chan struct{}
 }
@@ -157,6 +176,7 @@ func (application *App) run(ctx context.Context, options runOptions) (runError e
 		}()
 	}
 
+	var releasePublication func(context.Context) error
 	publishReady := func() error {
 		if options.confirmReady != nil {
 			if err := options.confirmReady(); err != nil {
@@ -165,6 +185,17 @@ func (application *App) run(ctx context.Context, options runOptions) (runError e
 		}
 		application.ready.Store(true)
 		close(allowAccept)
+		if options.readyHook != nil {
+			endpoints := make([]Endpoint, len(servers))
+			for index, server := range servers {
+				endpoints[index] = Endpoint{Name: server.name, Address: server.listener.Addr().String()}
+			}
+			var err error
+			releasePublication, err = options.readyHook(ctx, endpoints)
+			if err != nil {
+				return fmt.Errorf("publish application readiness: %w", err)
+			}
+		}
 		return nil
 	}
 	running, serveError := waitForStop(ctx, accepts, serveResults, len(servers), publishReady, options.replaced)
@@ -173,7 +204,15 @@ func (application *App) run(ctx context.Context, options runOptions) (runError e
 	if options.onStopping != nil {
 		options.onStopping()
 	}
-	return errors.Join(serveError, application.shutdown(servingContext, cancelServing, servers, serveResults, running))
+	shutdownContext, cancelShutdown := context.WithTimeout(servingContext, application.shutdownTimeout)
+	defer cancelShutdown()
+	var releaseError error
+	if releasePublication != nil {
+		if err := releasePublication(shutdownContext); err != nil {
+			releaseError = fmt.Errorf("release published resources: %w", err)
+		}
+	}
+	return errors.Join(serveError, releaseError, application.shutdown(shutdownContext, cancelServing, servers, serveResults, running))
 }
 
 func waitForStop(ctx context.Context, accepts <-chan struct{}, results <-chan serveResult, serverCount int, publishReady func() error, replaced <-chan struct{}) (int, error) {
@@ -215,9 +254,7 @@ func unexpectedExit(result serveResult) error {
 	return fmt.Errorf("serve %s: %w", result.name, result.err)
 }
 
-func (application *App) shutdown(ctx context.Context, cancelServing context.CancelFunc, servers []boundServer, serveResults <-chan serveResult, running int) error {
-	shutdownContext, cancelShutdown := context.WithTimeout(ctx, application.shutdownTimeout)
-	defer cancelShutdown()
+func (application *App) shutdown(shutdownContext context.Context, cancelServing context.CancelFunc, servers []boundServer, serveResults <-chan serveResult, running int) error {
 	stopResults := make(chan serveResult, len(servers))
 	for _, endpoint := range servers {
 		go func() {
