@@ -1,0 +1,28 @@
+name: Go checks
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  go:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: false
+      - uses: bufbuild/buf-action@v1.4.0
+        with:
+          version: '1.70.0'
+          setup_only: true
+      - name: Check Assistant protocol generation
+        run: bash tools/proto/generate.sh --check
+      - name: Check layer dependencies
+        run: bash scripts/check-layer-deps.sh
+      - name: Test independent modules with race detector
+        run: bash scripts/test-modules.sh

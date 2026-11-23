@@ -1,0 +1,60 @@
+syntax = "proto3";
+
+package kronos.assistant.v1;
+
+import "google/api/annotations.proto";
+
+option go_package = "github.com/fangfengxiang/kronos/examples/assistant/internal/wire/kronos/assistant/v1;assistantv1";
+
+// Assistant runs a prompt and returns the model's text output.
+service Assistant {
+  // Run returns the full text for a prompt.
+  rpc Run(RunRequest) returns (RunResponse) {
+    option (google.api.http) = {
+      post: "/v1/assistant:run"
+      body: "*"
+    };
+  }
+
+  // StreamRun emits text deltas in order. Success requires a completed event
+  // followed by an OK status. A non-OK status makes any received output partial.
+  rpc StreamRun(StreamRunRequest) returns (stream StreamRunResponse) {
+    option (google.api.http) = {
+      post: "/v1/assistant:streamRun"
+      body: "*"
+    };
+  }
+}
+
+message RunRequest {
+  // The prompt must contain at least one non-whitespace character.
+  string prompt = 1;
+}
+
+message RunResponse {
+  string text = 1;
+}
+
+message StreamRunRequest {
+  // The prompt must contain at least one non-whitespace character.
+  string prompt = 1;
+}
+
+message StreamRunResponse {
+  oneof event {
+    // Append this delta to the text delivered so far.
+    string text_delta = 1;
+
+    // A successful run sends this event once, after its last text delta.
+    RunCompleted completed = 2;
+  }
+}
+
+message RunCompleted {}
+
+// ErrorReason names are stable identifiers in HTTP reason and gRPC ErrorInfo.
+enum ErrorReason {
+  ERROR_REASON_UNSPECIFIED = 0;
+  ERROR_REASON_INVALID_PROMPT = 1;
+  ERROR_REASON_RUN_FAILED = 2;
+}

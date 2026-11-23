@@ -1,0 +1,11 @@
+version: v2
+modules:
+  - path: examples/assistant/api
+deps:
+  - buf.build/googleapis/googleapis
+lint:
+  use:
+    - STANDARD
+  ignore_only:
+    SERVICE_SUFFIX:
+      - examples/assistant/api/kronos/assistant/v1/assistant.proto
