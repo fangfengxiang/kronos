@@ -50,6 +50,6 @@ Kronos 是一个面向全球应用的、协议优先、云原生、AI 原生、�
 
 Core 包提供 goroutine 执行、语言匹配、消息查找和 IANA 时区转换。Assistant 通过 Blades 执行确定性文本模型，使用 Docker Compose 挂载配置并运行 HTTP、gRPC、SSE 与 go-micro v2 四个监听。Linux 容器已验证探针、实际调用、启动失败和进程关停。[Compose 使用指南](docs/guide/README.md#通过-docker-compose-运行)
 
-框架内置 Skill 将随参考应用交付，指导使用者定义协议、生成代码、接线、测试和部署。经验证的参考应用可进一步提炼为可复制的服务模板。
+仓库内置的 `kronos-framework` Skill 记录定义协议、生成代码、接线、Go 验收和 Linux 部署流程。[框架使用 Skill](.agents/skills/kronos-framework/SKILL.md)
 
 [Core 首版落地设计与验收](docs/design/core-v1.md)

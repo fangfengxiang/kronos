@@ -30,12 +30,12 @@ Kronos 面向全球应用，沿同一份 Protobuf 契约交付 gRPC、可选 HTT
 | 基础设施 | [`infra/`](../../infra/README.md)。将外部系统接入消费方需要的边界。 |
 | 框架 | [`framework/`](../../framework/README.md)。装配、RPC 传输和应用生命周期。 |
 | 平台 | [`platform/`](../../platform/README.md)。跨服务契约、生成工具与交付约定。 |
-| 业务 | 后续参考应用持有领域规则、用例及资源。 |
+| 业务 | `examples/` 中的 Assistant 和 TextBackend 持有服务契约、领域规则、用例及资源。 |
 
 依赖从使用方指向较低职责层。`core/` 保持独立，`infra/` 与 `framework/` 可使用核心原语，具体基础设施实例由应用入口注入框架。平台工具使用各层公开接口。各独立封装包通过自己的 Go 模块管理依赖，仓库通过 `go.work` 联调。允许的跨层导入见 [ADR 0004](../adr/0004-layer-and-module-boundaries.md)。
 
 ## 仓库职责
 
-`docs/` 记录架构、设计、ADR 和框架使用文档。`examples/` 承载可运行参考应用。`tools/proto/` 固定生成模板和工具版本，`platform/verify` 提供生成与原生 Go 验收入口。`test/integration/` 和 `test/e2e/` 分别验证真实传输和容器交付。`.agents/skills/kronos-framework/` 预留给随参考应用交付的框架操作 Skill。
+`docs/` 记录架构、设计、ADR 和框架使用文档。`examples/` 承载可运行参考应用。`tools/proto/` 固定生成模板和工具版本，`platform/verify` 提供生成与原生 Go 验收入口。`test/integration/` 和 `test/e2e/` 分别验证真实传输和容器交付。框架操作 Skill 随参考应用交付。[框架使用 Skill](../../.agents/skills/kronos-framework/SKILL.md)
 
 具体决定由 [ADR 索引](../adr/README.md) 追踪。

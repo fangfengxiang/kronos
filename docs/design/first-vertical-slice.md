@@ -49,4 +49,6 @@
 
 `go test -tags=e2e -count=1 ./test/e2e/assistant` 在本地和 CI 使用相同的镜像、探针、配置失败及进程关停检查。应用层的实时在途排空测试补充容器进程证据。[端到端测试与实测](assistant-compose.md)
 
+参考应用随仓库附带 `kronos-framework` Skill，按新增协议或消费已有服务的场景指向生成、装配和 Linux 验收入口。组件行为与实测记录继续由对应设计维护。[框架使用 Skill](../../.agents/skills/kronos-framework/SKILL.md)
+
 [返回项目首页](../../README.md) · [使用指南](../guide/README.md)

@@ -2,6 +2,8 @@
 
 Kronos 的 Core 原语已可通过 Go 包使用。Assistant v1 提供一元 HTTP 和 gRPC，并可独立启用 SSE 和 go-micro v2 兼容监听。
 
+在仓库内通过代理接线时，可使用 `kronos-framework` Skill 查阅生成、装配与验收步骤。[框架使用 Skill](../../.agents/skills/kronos-framework/SKILL.md)
+
 | 我想做什么 | 当前可以查阅 |
 | --- | --- |
 | 判断 Kronos 是否适合我的 Go 服务 | 阅读框架的责任范围与依赖方向。[项目首页](../../README.md) · [架构概览](../architecture/overview.md) |
