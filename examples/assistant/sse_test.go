@@ -32,21 +32,31 @@ func TestSSEFailureAndDisconnect(t *testing.T) {
 	providerFailure := errors.New("hidden provider error")
 	workStopped := make(chan error, 1)
 	const callerID = "sse-client.01"
+	const privateModelPanic = "private model panic"
 	runner, err := blades.New("assistant", func(ctx context.Context, prompt string) iter.Seq2[string, error] {
 		return func(yield func(string, error) bool) {
 			if id := request.ID(ctx); id != callerID {
 				t.Errorf("SSE model context ID = %q, want %q", id, callerID)
 			}
-			if prompt == "fail early" {
+			switch prompt {
+			case "fail early":
 				yield("", providerFailure)
+				return
+			case "model panic early":
+				panic(privateModelPanic)
+			case "after panic":
+				yield("已恢复", nil)
 				return
 			}
 			if !yield("首段", nil) {
 				return
 			}
-			if prompt == "fail late" {
+			switch prompt {
+			case "fail late":
 				yield("", providerFailure)
 				return
+			case "model panic late":
+				panic(privateModelPanic)
 			}
 			<-ctx.Done()
 			workStopped <- ctx.Err()
@@ -65,8 +75,6 @@ func TestSSEFailureAndDisconnect(t *testing.T) {
 				return err
 			}
 			panic(privateHandlerPanic)
-		case "after panic":
-			return emit("已恢复")
 		}
 		return runner.Stream(ctx, request.GetPrompt(), emit)
 	}))
@@ -109,13 +117,16 @@ func TestSSEFailureAndDisconnect(t *testing.T) {
 		{`{"prompt":"fail late"}`, http.StatusOK, true},
 		{`{"prompt":"panic early"}`, http.StatusInternalServerError, false},
 		{`{"prompt":"panic late"}`, http.StatusOK, true},
+		{`{"prompt":"model panic early"}`, http.StatusInternalServerError, false},
+		{`{"prompt":"model panic late"}`, http.StatusOK, true},
 	} {
 		response := post(test.body)
 		body, err := io.ReadAll(response.Body)
 		response.Body.Close()
 		bodyText := string(body)
 		if err != nil || response.StatusCode != test.status || !strings.Contains(bodyText, "ERROR_REASON_RUN_FAILED") ||
-			strings.Contains(bodyText, providerFailure.Error()) || strings.Contains(bodyText, privateHandlerPanic) || strings.Contains(bodyText, `"completed"`) ||
+			strings.Contains(bodyText, providerFailure.Error()) || strings.Contains(bodyText, privateHandlerPanic) ||
+			strings.Contains(bodyText, privateModelPanic) || strings.Contains(bodyText, `"completed"`) ||
 			strings.Contains(bodyText, "event: error") != test.streamError || strings.Contains(bodyText, "首段") != test.streamError {
 			t.Fatalf("SSE failure = %d %s (%v)", response.StatusCode, body, err)
 		}

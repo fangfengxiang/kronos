@@ -3,7 +3,10 @@ package blades
 import (
 	"context"
 	"errors"
+	"fmt"
 	"iter"
+	"log/slog"
+	"runtime/debug"
 
 	"github.com/go-kratos/blades/content"
 	"github.com/go-kratos/blades/model"
@@ -31,7 +34,7 @@ func (provider textProvider) Stream(ctx context.Context, request *model.Request)
 		}
 		message := request.Messages[len(request.Messages)-1]
 		prompt := content.TextFromParts(message.Parts)
-		for delta, err := range provider.generate(ctx, prompt) {
+		for delta, err := range provider.textStream(ctx, prompt) {
 			if contextError := ctx.Err(); contextError != nil {
 				yield(nil, contextError)
 				return
@@ -50,4 +53,37 @@ func (provider textProvider) Stream(ctx context.Context, request *model.Request)
 		}
 		yield(&model.Chunk{StopReason: model.StopEnd}, nil)
 	}
+}
+
+func (provider textProvider) textStream(ctx context.Context, prompt string) iter.Seq2[string, error] {
+	return func(yield func(string, error) bool) {
+		accepting, delivering := true, false
+		defer func() {
+			if value := recover(); value != nil {
+				// A panic from the consumer belongs to its own execution boundary.
+				if delivering {
+					panic(value)
+				}
+				reportModelPanic(ctx, value)
+				if accepting {
+					yield("", ErrModelPanic)
+				}
+			}
+		}()
+		provider.generate(ctx, prompt)(func(delta string, err error) bool {
+			if !accepting {
+				return false
+			}
+			delivering = true
+			accepting = yield(delta, err)
+			delivering = false
+			return accepting
+		})
+	}
+}
+
+func reportModelPanic(ctx context.Context, value any) {
+	// Keep application log handlers from disrupting model error delivery.
+	defer func() { _ = recover() }()
+	slog.ErrorContext(ctx, "text model panicked", "panic_type", fmt.Sprintf("%T", value), "stack", string(debug.Stack()))
 }

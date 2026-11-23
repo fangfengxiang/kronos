@@ -51,3 +51,9 @@
 | `GOWORK=off go test -tags=e2e -count=1 -v ./test/e2e/assistant` | macOS arm64 启动 Linux Compose 容器。Assistant 的四种入口、探针、启动失败和关停均通过。 |
 
 五个问题由临时原生 Go 用例单独复现，属于本次审查发现。Consul、Kafka、MongoDB、MySQL 和 Redis 的真实服务集成测试需要单独标签，本轮未运行这些用例。OSS 验证使用本地 HTTP 夹具。[参考服务集成用例](../../test/integration)
+
+## 修复验收
+
+| 审查问题 | 修复效果与实测 |
+| --- | --- |
+| 1 模型回调 panic | 模型执行协程恢复 panic 并返回 `ErrModelPanic`，SSE 沿既有失败路径结束。Linux arm64 和 macOS arm64 竞态分别通过适配模块及 SSE 三轮回归。[设计与实测](../design/blades-adapter.md#实测与复盘) |

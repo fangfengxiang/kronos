@@ -68,6 +68,50 @@ func TestModelFailurePreservesOnlyEmittedText(t *testing.T) {
 	}
 }
 
+func TestModelPanicStopsOnlyTheCurrentRun(t *testing.T) {
+	upstreamFailure := errors.New("model refused the prompt")
+	runner, err := blades.New("assistant", func(_ context.Context, prompt string) iter.Seq2[string, error] {
+		if prompt == "factory" {
+			panic("model factory failed")
+		}
+		return func(yield func(string, error) bool) {
+			switch prompt {
+			case "partial":
+				if yield("partial text", nil) {
+					panic(nil)
+				}
+			case "after failure":
+				yield("", upstreamFailure)
+				panic("model cleanup failed")
+			default:
+				yield(prompt, nil)
+			}
+		}
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithTimeout(t.Context(), 3*time.Second)
+	defer cancel()
+	if text, err := runner.Run(ctx, "factory"); text != "" || !errors.Is(err, blades.ErrModelPanic) {
+		t.Fatalf("Run after factory panic = %q, %v", text, err)
+	}
+	var fragments []string
+	err = runner.Stream(ctx, "partial", func(fragment string) error {
+		fragments = append(fragments, fragment)
+		return nil
+	})
+	if !errors.Is(err, blades.ErrModelPanic) || !slices.Equal(fragments, []string{"partial text"}) {
+		t.Fatalf("Stream after model panic = %q, %v", fragments, err)
+	}
+	if text, err := runner.Run(ctx, "after failure"); text != "" || !errors.Is(err, upstreamFailure) {
+		t.Fatalf("Run after a reported model failure = %q, %v", text, err)
+	}
+	if text, err := runner.Run(ctx, "后续调用"); text != "后续调用" || err != nil {
+		t.Fatalf("Run after recovery = %q, %v", text, err)
+	}
+}
+
 func TestStreamCancellationStopsModel(t *testing.T) {
 	for _, rejectDelta := range []bool{false, true} {
 		name := "caller cancellation"

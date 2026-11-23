@@ -14,6 +14,9 @@ import (
 // ErrIncomplete indicates that a run ended without a successful terminal event.
 var ErrIncomplete = errors.New("agent run ended without completion")
 
+// ErrModelPanic indicates that the text model panicked while producing output.
+var ErrModelPanic = errors.New("text model panicked")
+
 // TextModel generates deltas for a single prompt. Its iterator must honor
 // context cancellation and stop when yield returns false.
 type TextModel func(ctx context.Context, prompt string) iter.Seq2[string, error]
