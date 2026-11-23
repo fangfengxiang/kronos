@@ -20,7 +20,7 @@
 
 | 平台 | tableflip v1.2.3 与 Kronos 重载 | 仓库验收 |
 | --- | --- | --- |
-| Linux | 支持进程级重载，是首要部署平台。 | Linux amd64 交叉构建通过，Linux 进程运行验收待补。 |
+| Linux | 支持进程级重载，是首要部署平台。 | Linux amd64 交叉构建通过。Ubuntu CI 通过真实进程接力与在途流排空测试。 |
 | macOS | 支持进程级重载。 | macOS arm64 真实进程接力与旧流排空通过。 |
 | Windows | 上游不支持进程级重载。普通启动时省略 `-reload-pid-file`，启用重载会返回平台不支持错误。 | 上游声明与接入源码已核对。 |
 
@@ -36,4 +36,4 @@
 
 - 在 Go 1.25.0、macOS arm64 下运行 `bash scripts/test-modules.sh`。Assistant 子进程先启动一个退出码为 23 的候选，旧 PID 和四个端口继续服务。恢复可执行文件后成功接力。旧进程退出码为 0，新进程的四个入口可调用，最终 `SIGTERM` 后地址均可重新绑定。[Assistant 进程测试](../../examples/assistant/cmd/assistant/reload_test.go)
 - 在 `framework/app` 内运行 `GOWORK=off go test -race -count=8 -run '^TestReloadDrainsAcceptedStream$' ./...`。候选等待第二个监听时，请求继续抵达旧进程。旧接收循环结束后，新进程接流，旧进程仍完成先前的 SSE 流。初次复测在接力边界观察到未进入处理器的 HTTP 请求返回 EOF，验收以两代接流状态和已进入的工作为观察点。[在途流进程测试](../../framework/app/reload_test.go)
-- 使用 `GOWORK=off GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -o "$CROSS_BUILD" ./examples/assistant/cmd/assistant` 生成 Linux 静态可执行文件。真实进程验收在 macOS 执行。
+- 使用 `GOWORK=off GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -o "$CROSS_BUILD" ./examples/assistant/cmd/assistant` 生成 Linux 静态可执行文件。Ubuntu 的 `Go checks` 在 `f6b3505` 运行 `bash scripts/test-modules.sh`，通过四端口重载和在途流排空的真实进程测试。[Linux CI](https://github.com/fangfengxiang/kronos/actions/runs/45096952137)
