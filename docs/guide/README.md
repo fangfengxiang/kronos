@@ -130,6 +130,12 @@ go run ./examples/textbackend/cmd/textbackend -mysql-profile greeting -profile-c
 go run ./examples/textbackend/cmd/textbackend -mongo-profile greeting -mongo-database kronos
 ```
 
+用 OSS 存储文本配置时，将 UTF-8 前缀写入对象，再设置 `KRONOS_TEXTBACKEND_OSS_REGION`、`KRONOS_TEXTBACKEND_OSS_BUCKET`、`OSS_ACCESS_KEY_ID` 和 `OSS_ACCESS_KEY_SECRET`。短期凭据同时设置 `OSS_SESSION_TOKEN`。默认连接区域 HTTPS endpoint。使用桶专属域名时设置完整的 `KRONOS_TEXTBACKEND_OSS_ENDPOINT` 并传入 `-oss-cname`。入口在启动时读取凭据，轮转后重启进程。[OSS 用法与实测](../design/oss-text-profiles.md) · [可执行的 Go 签名示例](../../infra/aliyunoss/bucket_test.go) · [OSS endpoint 与凭据](https://www.alibabacloud.com/help/en/oss/developer-reference/manual-for-go-sdk-v2/)
+
+```sh
+go run ./examples/textbackend/cmd/textbackend -oss-profile profiles/greeting.txt
+```
+
 ### 通过 Docker Compose 运行
 
 从仓库根目录构建并等待容器就绪。HTTP、gRPC、SSE 和 go-micro v2 分别使用容器端口 `8080`、`9090`、`8081`、`9091`，按下方命令查询宿主回环地址。挂载配置定义各监听和应用关停预算。[Compose 配置](../../compose.yaml) · [容器启动配置](../../examples/assistant/deploy/assistant.json)

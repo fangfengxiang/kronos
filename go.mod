@@ -9,6 +9,7 @@ require (
 	github.com/fangfengxiang/kronos/framework/log v0.0.0
 	github.com/fangfengxiang/kronos/framework/request v0.0.0-20261123055539-816a8d9cbbb5
 	github.com/fangfengxiang/kronos/framework/rpc v0.0.0
+	github.com/fangfengxiang/kronos/infra/aliyunoss v0.0.0
 	github.com/fangfengxiang/kronos/infra/blades v0.0.0
 	github.com/fangfengxiang/kronos/infra/configfile v0.0.0
 	github.com/fangfengxiang/kronos/infra/consul v0.0.0
@@ -35,6 +36,7 @@ replace (
 	github.com/fangfengxiang/kronos/framework/log => ./framework/log
 	github.com/fangfengxiang/kronos/framework/request => ./framework/request
 	github.com/fangfengxiang/kronos/framework/rpc => ./framework/rpc
+	github.com/fangfengxiang/kronos/infra/aliyunoss => ./infra/aliyunoss
 	github.com/fangfengxiang/kronos/infra/blades => ./infra/blades
 	github.com/fangfengxiang/kronos/infra/configfile => ./infra/configfile
 	github.com/fangfengxiang/kronos/infra/consul => ./infra/consul
@@ -49,6 +51,7 @@ replace (
 
 require (
 	filippo.io/edwards25519 v1.2.0 // indirect
+	github.com/aliyun/alibabacloud-oss-go-sdk-v2 v1.6.1 // indirect
 	github.com/armon/go-metrics v0.4.1 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cenkalti/backoff/v5 v5.0.3 // indirect
@@ -105,5 +108,6 @@ require (
 	golang.org/x/sync v0.22.0 // indirect
 	golang.org/x/sys v0.46.0 // indirect
 	golang.org/x/text v0.40.0 // indirect
+	golang.org/x/time v0.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )

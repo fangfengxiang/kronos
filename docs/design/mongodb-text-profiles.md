@@ -1,6 +1,6 @@
 # MongoDB 类型化文档与文本配置
 
-TextBackend 可以从 MongoDB 集合读取选定的文本配置。应用使用 `-mongo-profile <name>` 和 `KRONOS_TEXTBACKEND_MONGODB_URI`，数据库由 `-mongo-database` 指定，默认 `kronos`。MySQL 和 MongoDB 是可选的配置来源，同时指定时入口报错。
+TextBackend 可以从 MongoDB 集合读取选定的文本配置。应用使用 `-mongo-profile <name>` 和 `KRONOS_TEXTBACKEND_MONGODB_URI`，数据库由 `-mongo-database` 指定，默认 `kronos`。应用入口一次选择一种文本配置来源。[MySQL 配置](mysql-text-profiles.md) · [OSS 配置](oss-text-profiles.md)
 
 ## 契约与所有权
 

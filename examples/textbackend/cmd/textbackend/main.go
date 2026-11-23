@@ -16,6 +16,7 @@ import (
 	"github.com/fangfengxiang/kronos/framework/app"
 	"github.com/fangfengxiang/kronos/framework/log"
 	"github.com/fangfengxiang/kronos/framework/rpc"
+	"github.com/fangfengxiang/kronos/infra/aliyunoss"
 	"github.com/fangfengxiang/kronos/infra/consul"
 	"github.com/fangfengxiang/kronos/infra/mongodb"
 	"github.com/fangfengxiang/kronos/infra/redis"
@@ -38,9 +39,11 @@ func run(ctx context.Context, arguments []string) (runError error) {
 	grpcAddress := flags.String("grpc", "127.0.0.1:9290", "gRPC listen address")
 	consulEndpoint := flags.String("consul", "", "Consul HTTP(S) agent URL (empty disables registration)")
 	advertiseAddress := flags.String("advertise-grpc", "", "advertised gRPC host:port (defaults to the bound address)")
-	profileName := flags.String("mysql-profile", "", "text profile name in MySQL (empty uses the built-in profile)")
+	mysqlProfileName := flags.String("mysql-profile", "", "text profile name in MySQL (empty uses the built-in profile)")
 	mongoProfileName := flags.String("mongo-profile", "", "text profile ID in MongoDB")
 	mongoDatabase := flags.String("mongo-database", "kronos", "MongoDB database for text profiles")
+	ossProfileKey := flags.String("oss-profile", "", "text profile object key in OSS")
+	ossUseCNAME := flags.Bool("oss-cname", false, "use an OSS bucket-bound domain for the configured endpoint")
 	cacheTTL := flags.Duration("profile-cache-ttl", 0, "Redis TTL for MySQL profiles (zero disables the cache)")
 	cacheNamespace := flags.String("profile-cache-namespace", "default", "namespace for MySQL profile keys in Redis")
 	cacheCluster := flags.Bool("profile-cache-cluster", false, "use Redis Cluster for the profile cache")
@@ -53,10 +56,16 @@ func run(ctx context.Context, arguments []string) (runError error) {
 	if flags.NArg() != 0 {
 		return errors.New("unexpected positional arguments")
 	}
-	if *profileName != "" && *mongoProfileName != "" {
-		return errors.New("configure only one of mysql-profile and mongo-profile")
+	profileSourceCount := 0
+	for _, selectedProfile := range []string{*mysqlProfileName, *mongoProfileName, *ossProfileKey} {
+		if selectedProfile != "" {
+			profileSourceCount++
+		}
 	}
-	if *cacheTTL != 0 && (*cacheTTL < time.Millisecond || *profileName == "" || strings.TrimSpace(*cacheNamespace) == "") {
+	if profileSourceCount > 1 {
+		return errors.New("configure only one of mysql-profile, mongo-profile, or oss-profile")
+	}
+	if *cacheTTL != 0 && (*cacheTTL < time.Millisecond || *mysqlProfileName == "" || strings.TrimSpace(*cacheNamespace) == "") {
 		return errors.New("profile cache requires a MySQL profile, a namespace, and a TTL of at least one millisecond")
 	}
 	var registry *consul.Registry
@@ -72,8 +81,8 @@ func run(ctx context.Context, arguments []string) (runError error) {
 	}
 	service := textService{}
 	switch {
-	case *profileName != "":
-		profile, err := openMySQLProfile(ctx, *profileName, os.Getenv("KRONOS_TEXTBACKEND_MYSQL_DSN"))
+	case *mysqlProfileName != "":
+		profile, err := openMySQLProfile(ctx, *mysqlProfileName, os.Getenv("KRONOS_TEXTBACKEND_MYSQL_DSN"))
 		if err != nil {
 			return err
 		}
@@ -88,6 +97,17 @@ func run(ctx context.Context, arguments []string) (runError error) {
 		}
 		defer func() { runError = errors.Join(runError, profile.close(ctx)) }()
 		service.prefixSource = profile
+	case *ossProfileKey != "":
+		profile, err := openOSSProfile(ctx, aliyunoss.Config{
+			Region: os.Getenv("KRONOS_TEXTBACKEND_OSS_REGION"), Bucket: os.Getenv("KRONOS_TEXTBACKEND_OSS_BUCKET"),
+			Endpoint: os.Getenv("KRONOS_TEXTBACKEND_OSS_ENDPOINT"), UseCNAME: *ossUseCNAME,
+			AccessKeyID: os.Getenv("OSS_ACCESS_KEY_ID"), AccessKeySecret: os.Getenv("OSS_ACCESS_KEY_SECRET"), SessionToken: os.Getenv("OSS_SESSION_TOKEN"),
+		}, *ossProfileKey)
+		if err != nil {
+			return err
+		}
+		defer profile.bucket.CloseIdleConnections()
+		service.prefixSource = profile
 	}
 	if *cacheTTL > 0 {
 		cache, err := redis.New(redis.Config{URL: os.Getenv("KRONOS_TEXTBACKEND_REDIS_URL"), Cluster: *cacheCluster})
@@ -96,7 +116,7 @@ func run(ctx context.Context, arguments []string) (runError error) {
 		}
 		defer func() { runError = errors.Join(runError, cache.Close()) }()
 		service.prefixSource = cachedProfile{
-			origin: service.prefixSource, cache: cache, key: profileCacheKey(*cacheNamespace, *profileName), ttl: *cacheTTL,
+			origin: service.prefixSource, cache: cache, key: profileCacheKey(*cacheNamespace, *mysqlProfileName), ttl: *cacheTTL,
 		}
 	}
 	application, err := app.New(app.Config{ShutdownTimeout: 5 * time.Second}, app.Binding{

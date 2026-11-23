@@ -4,6 +4,8 @@
 
 由实际调用方定义需要的窄接口，再在应用入口接入具体适配。优先复用 Kratos 或上游提供的能力，新增封装须有明确受益的调用方。
 
+[`infra/aliyunoss`](aliyunoss) 提供独立桶客户端、对象下载、上传及 V4 临时下载 URL。[OSS 对象与文本配置](../docs/design/oss-text-profiles.md)
+
 [`infra/blades`](blades) 是独立 Agent 适配模块，提供单次提示词的一元结果与文本增量，管理失败和取消后的收尾。[Blades 文本 Agent 适配](../docs/design/blades-adapter.md)
 
 [`infra/configfile`](configfile) 是独立配置源模块，提供类型化的本地 JSON 快照读取，由消费入口定义配置字段和覆盖规则。[启动配置文件](../docs/design/config-file.md)
