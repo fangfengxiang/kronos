@@ -37,8 +37,8 @@ type Database struct {
 	native *mongo.Database
 }
 
-// Open constructs a client and verifies connectivity within ctx. The caller
-// owns the returned database and needs to Close it.
+// Open waits for SRV URI resolution and verifies connectivity within ctx.
+// The caller owns the returned database and needs to Close it.
 func Open(ctx context.Context, config Config) (*Database, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
@@ -46,7 +46,10 @@ func Open(ctx context.Context, config Config) (*Database, error) {
 	if strings.TrimSpace(config.URI) == "" || strings.TrimSpace(config.Database) == "" {
 		return nil, ErrInvalidConfig
 	}
-	clientOptions := options.Client().ApplyURI(config.URI)
+	clientOptions, err := clientOptionsFor(ctx, config.URI)
+	if err != nil {
+		return nil, err
+	}
 	if !clientOptions.WriteConcern.Acknowledged() {
 		return nil, ErrInvalidConfig
 	}
@@ -61,6 +64,24 @@ func Open(ctx context.Context, config Config) (*Database, error) {
 		return nil, operationError(ctx, err)
 	}
 	return &Database{client: client, native: client.Database(config.Database)}, nil
+}
+
+func clientOptionsFor(ctx context.Context, uri string) (*options.ClientOptions, error) {
+	if !strings.HasPrefix(uri, "mongodb+srv://") || ctx.Done() == nil {
+		return options.Client().ApplyURI(uri), ctx.Err()
+	}
+	// ApplyURI's DNS lookups have no context. Only the caller creates a client,
+	// and the buffered result lets the parser finish after the caller leaves.
+	resolved := make(chan *options.ClientOptions, 1)
+	go func() {
+		resolved <- options.Client().ApplyURI(uri)
+	}()
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	case clientOptions := <-resolved:
+		return clientOptions, ctx.Err()
+	}
 }
 
 // Close disconnects the client and releases its connections.

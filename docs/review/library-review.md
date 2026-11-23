@@ -58,3 +58,4 @@
 | --- | --- |
 | 1 模型回调 panic | 模型执行协程恢复 panic 并返回 `ErrModelPanic`，SSE 沿既有失败路径结束。Linux arm64 和 macOS arm64 竞态分别通过适配模块及 SSE 三轮回归。[设计与实测](../design/blades-adapter.md#实测与复盘) |
 | 2 恢复后请求观测 | 共享业务入口记录恢复后的错误。真实 gRPC 一元及流式调用各产生一次失败计数、一个结束的错误 span 和一条关联日志。Linux arm64 三轮通过，macOS arm64 通过 Assistant 全部竞态回归。[设计与实测](../design/rpc-handler-recovery.md#实测记录) |
+| 3 MongoDB SRV 启动等待 | DNS 查询进行时，调用者取消或超时即收到原上下文错误。Linux arm64 与 macOS arm64 竞态的适配测试分别五轮通过，隔离网络中的 MongoDB 8.0.38 直连与 TextBackend 进程回归通过。[设计与实测](../design/mongodb-text-profiles.md#实测记录) |
