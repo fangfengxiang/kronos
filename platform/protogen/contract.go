@@ -5,6 +5,7 @@ import (
 	"go/token"
 	"path"
 	"slices"
+	"strconv"
 	"strings"
 
 	"google.golang.org/protobuf/compiler/protogen"
@@ -18,6 +19,7 @@ type contract struct {
 	aliases  []symbolAlias
 	services []unaryService
 	names    map[string]protogen.GoImportPath
+	bindings bool
 }
 
 type symbolAlias struct {
@@ -26,11 +28,13 @@ type symbolAlias struct {
 }
 
 type unaryService struct {
-	name    string
-	methods []*protogen.Method
+	name           string
+	descriptor     *protogen.Service
+	fileDescriptor protogen.GoIdent
+	methods        []*protogen.Method
 }
 
-func generateContract(plugin *protogen.Plugin, apiImport string) error {
+func generateContract(plugin *protogen.Plugin, apiImport string, unaryBindings bool) error {
 	packageName := path.Base(apiImport)
 	if !strings.Contains(apiImport, "/") || strings.HasPrefix(apiImport, "/") || strings.HasPrefix(apiImport, "../") ||
 		path.Clean(apiImport) != apiImport || strings.ContainsAny(apiImport, "\\\n\r\t ") ||
@@ -49,7 +53,7 @@ func generateContract(plugin *protogen.Plugin, apiImport string) error {
 	slices.SortFunc(inputs, func(first, second *protogen.File) int {
 		return strings.Compare(first.Desc.Path(), second.Desc.Path())
 	})
-	plan := contract{names: make(map[string]protogen.GoImportPath)}
+	plan := contract{names: make(map[string]protogen.GoImportPath), bindings: unaryBindings}
 	wireRoot := apiImport + "/internal/wire"
 	for _, file := range inputs {
 		wireImport := string(file.GoImportPath)
@@ -92,6 +96,9 @@ func generateContract(plugin *protogen.Plugin, apiImport string) error {
 			output.P(method.GoName, "(", ctx, ", *", input, ") (*", response, ", error)")
 		}
 		output.P("}")
+		if plan.bindings {
+			plan.writeUnaryBinding(output, service)
+		}
 	}
 	return nil
 }
@@ -108,20 +115,54 @@ func (plan *contract) collectFile(file *protogen.File) error {
 		}
 	}
 	for _, service := range file.Services {
-		unary := unaryService{name: service.GoName + "UnaryService"}
+		unary := unaryService{name: service.GoName + "UnaryService", descriptor: service, fileDescriptor: file.GoDescriptorIdent}
 		for _, method := range service.Methods {
 			if !method.Desc.IsStreamingClient() && !method.Desc.IsStreamingServer() {
 				unary.methods = append(unary.methods, method)
+			} else if plan.bindings {
+				return fmt.Errorf("%s requires unary methods for Kronos bindings", method.Desc.FullName())
 			}
 		}
 		if len(unary.methods) != 0 {
 			if err := plan.reserveName(unary.name, ""); err != nil {
 				return err
 			}
+			if plan.bindings {
+				for _, name := range []string{service.GoName + "Name", "Bind" + service.GoName} {
+					if err := plan.reserveName(name, ""); err != nil {
+						return err
+					}
+				}
+			}
 			plan.services = append(plan.services, unary)
 		}
 	}
 	return nil
+}
+
+func (plan *contract) writeUnaryBinding(output *protogen.GeneratedFile, service unaryService) {
+	kronos := protogen.GoImportPath("github.com/fangfengxiang/kronos/platform/kronos")
+	serviceName := service.descriptor.GoName
+	output.P()
+	output.P("// ", serviceName, "Name is the default discovery name.")
+	output.P("const ", serviceName, "Name = ", strconv.Quote(string(service.descriptor.Desc.FullName())))
+	output.P()
+	output.P("// Bind", serviceName, " binds an implementation of the Protobuf service.")
+	output.P("func Bind", serviceName, "(implementation ", service.name, ") ", output.QualifiedGoIdent(kronos.Ident("Service")), " {")
+	output.P("descriptor := ", output.QualifiedGoIdent(service.fileDescriptor),
+		".Services().ByName(", strconv.Quote(string(service.descriptor.Desc.Name())), ")")
+	output.P("if implementation == nil {")
+	output.P("return ", output.QualifiedGoIdent(kronos.Ident("Bind")), "(descriptor)")
+	output.P("}")
+	output.P("return ", output.QualifiedGoIdent(kronos.Ident("Bind")), "(descriptor,")
+	for _, method := range service.methods {
+		input := plan.publicName(output, method.Input.GoIdent)
+		response := plan.publicName(output, method.Output.GoIdent)
+		output.P(output.QualifiedGoIdent(kronos.Ident("Unary")), "(", strconv.Quote(string(method.Desc.Name())),
+			", &", input, "{}, &", response, "{}, implementation.", method.GoName, "),")
+	}
+	output.P(")")
+	output.P("}")
 }
 
 func (plan *contract) collectEnum(enum *protogen.Enum) error {

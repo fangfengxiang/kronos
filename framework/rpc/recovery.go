@@ -14,10 +14,15 @@ var ErrHandlerPanic = errors.New("RPC handler panicked")
 // RecoverUnary wraps a unary handler with same-goroutine panic recovery.
 // A nil handler remains nil for bindings that use it to disable a method.
 func RecoverUnary[Request, Response any](handler func(context.Context, *Request) (*Response, error)) func(context.Context, *Request) (*Response, error) {
+	return RecoverCall(handler)
+}
+
+// RecoverCall protects a unary invocation that accepts values or interfaces.
+func RecoverCall[Request, Response any](handler func(context.Context, Request) (Response, error)) func(context.Context, Request) (Response, error) {
 	if handler == nil {
 		return nil
 	}
-	return func(ctx context.Context, request *Request) (_ *Response, err error) {
+	return func(ctx context.Context, request Request) (_ Response, err error) {
 		defer recoverHandler(ctx, &err)
 		return handler(ctx, request)
 	}

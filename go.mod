@@ -24,6 +24,7 @@ require (
 	github.com/fangfengxiang/kronos/infra/prometheus v0.0.0
 	github.com/fangfengxiang/kronos/infra/redis v0.0.0
 	github.com/fangfengxiang/kronos/infra/runtimeprofile v0.0.0
+	github.com/fangfengxiang/kronos/platform/kronos v0.0.0
 	github.com/go-kratos/kratos/v3 v3.0.0
 	go.opentelemetry.io/otel v1.43.0
 	go.opentelemetry.io/proto/otlp v1.10.0
@@ -55,6 +56,7 @@ replace (
 	github.com/fangfengxiang/kronos/infra/prometheus => ./infra/prometheus
 	github.com/fangfengxiang/kronos/infra/redis => ./infra/redis
 	github.com/fangfengxiang/kronos/infra/runtimeprofile => ./infra/runtimeprofile
+	github.com/fangfengxiang/kronos/platform/kronos => ./platform/kronos
 )
 
 require (

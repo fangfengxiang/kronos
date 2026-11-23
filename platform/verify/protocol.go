@@ -21,6 +21,7 @@ type protocolTarget struct {
 var protocolTargets = []protocolTarget{
 	{serviceDirectory: "examples/assistant", template: "tools/proto/buf.gen.yaml"},
 	{serviceDirectory: "examples/textbackend", template: "tools/proto/buf.textbackend.gen.yaml"},
+	{serviceDirectory: "examples/order", template: "tools/proto/buf.order.gen.yaml"},
 }
 
 func checkBufVersion(ctx context.Context, repository string) error {

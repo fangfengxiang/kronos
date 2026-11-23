@@ -15,6 +15,7 @@ Kronos 的 Core 原语已可通过 Go 包使用。Assistant v1 提供一元 HTTP
 | 按用户时区展示时刻或归档日报 | 用 `core/timezone` 解析 IANA 时区并计算当地日期。精简部署可通过 `-tags timetzdata` 内嵌规则。[Core 时区](../design/core-timezone.md) · [日报日期示例](../../examples/reportdate) |
 | 在本机复现端到端测试 | 用 Compose 和 Go 测试验证镜像、探针、真实调用与容器关停。[容器交付](../design/assistant-compose.md) |
 | 使用 etcd 分协议注册或发现地址 | `infra/etcd` 提供独立客户端与租约发布。Windows 开发可连接 Linux etcd，官方 Windows 服务端为 Tier 3。[适配契约与实测](../design/service-governance.md#etcd-适配契约) |
+| 用统一入口部署 gRPC 和旧 RPC | 从 Order 的 21 行装配开始，复用同一套业务实现。[Order 服务](../../examples/order/cmd/order/main.go) · [统一服务端](../design/unary-service-api.md) |
 
 ## 验证独立模块
 

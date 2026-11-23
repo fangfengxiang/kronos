@@ -20,8 +20,8 @@ const (
 // Owners are repository-relative import paths. A nil list reserves an SDK for
 // private transport bindings or test fixtures.
 var sdkOwnersByImportPrefix = map[string][]string{
-	kratosImportPrefix: {"framework/app", "framework/log", "infra/oteltrace", "infra/runtimeprofile"},
-	grpcImportPrefix:   nil,
+	kratosImportPrefix: {"framework/app", "framework/log", "infra/oteltrace", "infra/runtimeprofile", "platform/kronos/internal/transport"},
+	grpcImportPrefix:   {"platform/kronos/internal/transport"},
 	"github.com/aliyun/alibabacloud-oss-go-sdk-v2": {"infra/aliyunoss"},
 	"github.com/cloudflare/tableflip":              {"framework/app"},
 	"github.com/coreos/etcd":                       nil,

@@ -35,4 +35,6 @@ CI 使用 Go 验收入口遍历各模块，在 `GOWORK=off` 下运行独立测�
 
 CI 按 SDK 导入前缀和适配模块的所有权校验生产代码。Kronos 的运行、日志、追踪和专用监听适配可以使用各自依赖的 Kratos 能力，参考服务只在私有传输和生成代码导入 Kratos 或 gRPC。应用业务和命令通过 Kronos 访问已接入的模型、存储、注册、消息及观测能力。标准 Protobuf 库可以用于业务协议。原生对照测试可直接使用 SDK，以便核对适配结果。[SDK 归属与验收](../design/go-verification.md#外部-sdk-归属)
 
+`platform/kronos` 在平台层组合生命周期、RPC 语义和已有兼容适配。公开模块使用 Kronos 和 Protobuf 类型，Kratos 与 grpc-go 仅在其私有传输包装配。服务按生成的类型化绑定注册。[统一服务装配](../design/unary-service-api.md)
+
 [架构概览](../architecture/overview.md)

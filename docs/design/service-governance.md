@@ -56,3 +56,4 @@
 - 同一 Linux 环境运行 `GOWORK=off go test -tags=interop,etcd_interop -count=1 -v ./test/interop/microv2`。v2.0.0 和 v2.9.1 的官方 Registry 都只读取兼容端口。原有双向直连回归也通过。本切面验收注册数据。Order 进程的发现调用进入后续端到端验收。v2.0.0 的测试模块显式锁定其旧 etcd 访问链所用的 `github.com/coreos/pkg`。[发现对照](../../test/interop/microv2/etcd_test.go) · [夹具构建](../../test/interop/microv2/fixture_test.go)
 - macOS arm64 的 `go run ./platform/verify test` 和 `go run ./platform/verify deps` 通过。Linux arm64 的 `go run ./platform/verify deps` 和 `go run ./platform/verify proto` 通过。运行 `GOWORK=off GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go -C infra/etcd test -c` 生成 Windows 测试二进制。
 - `framework/app.RunWithReadyHook` 已通过 Linux 回环发布和有界关停测试。HTTP 请求证实发布时监听已经可用，撤销与传输共享一个截止时间，部分失败后释放端口。Order 的真实进程摘流进入后续集成验收。[生命周期实测](app-lifecycle.md#实测与复盘)
+- Order 进程的 21 行装配已运行。真实 etcd 上的原生 gRPC 与两版官方旧客户端通过服务名路径对照成功，`SIGTERM` 后两个地址注销。[统一服务端与实测](unary-service-api.md#实测)

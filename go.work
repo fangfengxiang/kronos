@@ -23,6 +23,7 @@ use (
 	./infra/prometheus
 	./infra/redis
 	./infra/runtimeprofile
+	./platform/kronos
 	./platform/protogen
 	./platform/verify
 )

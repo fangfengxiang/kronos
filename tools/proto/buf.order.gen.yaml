@@ -1,0 +1,17 @@
+version: v2
+inputs:
+  - directory: examples/order/api
+plugins:
+  - local: ["go", "run", "google.golang.org/protobuf/cmd/protoc-gen-go@v1.36.11"]
+    out: examples/order/internal/wire
+    opt: paths=source_relative
+  - local: ["go", "run", "google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.6.2"]
+    out: examples/order/internal/wire
+    opt: paths=source_relative
+  - local: ["go", "-C", "platform/protogen", "run", "."]
+    out: .
+    strategy: all
+    opt:
+      - module=github.com/fangfengxiang/kronos
+      - api_import=github.com/fangfengxiang/kronos/examples/order
+      - unary_bindings=true

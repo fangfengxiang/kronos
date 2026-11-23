@@ -18,7 +18,7 @@ func TestGenerateContractFromMultipleFiles(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := generateContract(plugin, publicEcho); err != nil {
+	if err := generateContract(plugin, publicEcho, false); err != nil {
 		t.Fatal(err)
 	}
 	result := plugin.Response()
@@ -55,7 +55,7 @@ func TestRejectsIncompatibleContractInputs(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		err = generateContract(plugin, "example.com/services/other")
+		err = generateContract(plugin, "example.com/services/other", false)
 		if err == nil || !strings.Contains(err.Error(), "messages.proto: go_package") {
 			t.Fatalf("unexpected generation error: %v", err)
 		}
@@ -77,7 +77,7 @@ func TestRejectsIncompatibleContractInputs(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		err = generateContract(plugin, publicEcho)
+		err = generateContract(plugin, publicEcho, false)
 		if err == nil || !strings.Contains(err.Error(), "other.proto: duplicate public Go declaration Response") {
 			t.Fatalf("unexpected generation error: %v", err)
 		}
@@ -89,11 +89,21 @@ func TestRejectsIncompatibleContractInputs(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		err = generateContract(plugin, publicEcho)
+		err = generateContract(plugin, publicEcho, false)
 		if err == nil || !strings.Contains(err.Error(), "private type echo.v1.Request") {
 			t.Fatalf("unexpected generation error: %v", err)
 		}
 	})
+}
+
+func TestUnaryBindingRejectsStreamingService(t *testing.T) {
+	plugin, err := (protogen.Options{}).New(echoDescriptors())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := generateContract(plugin, publicEcho, true); err == nil || !strings.Contains(err.Error(), "echo.v1.Echo.Watch") {
+		t.Fatalf("unary binding generation error = %v", err)
+	}
 }
 
 func echoDescriptors() *pluginpb.CodeGeneratorRequest {

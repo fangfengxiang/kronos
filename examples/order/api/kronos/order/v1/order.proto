@@ -1,0 +1,25 @@
+syntax = "proto3";
+
+package kronos.order.v1;
+
+option go_package = "github.com/fangfengxiang/kronos/examples/order/internal/wire/kronos/order/v1;orderv1";
+
+service OrderService {
+  rpc GetOrder(GetOrderRequest) returns (GetOrderResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+  }
+}
+
+message GetOrderRequest {
+  string order_id = 1;
+}
+
+message GetOrderResponse {
+  string order_id = 1;
+  string status = 2;
+}
+
+enum ErrorReason {
+  ERROR_REASON_UNSPECIFIED = 0;
+  ERROR_REASON_INVALID_ORDER_ID = 1;
+}
