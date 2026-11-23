@@ -1,0 +1,9 @@
+# ADR 0005 go-micro v2 兼容监听
+
+**状态。** 采纳独立监听与一元 Protobuf 兼容适配。
+
+旧版 go-micro 客户端需要在迁移期继续调用服务。应用显式配置兼容监听地址，通过 `app.Binding` 纳入同一生命周期。标准 gRPC、HTTP 和 SSE 入口继续沿公开 Proto 契约工作。业务一元方法由标准和兼容入口共享。
+
+`infra/microv2` 负责 HTTP RPC 头、调用期限、两类 Protobuf 信封与错误格式。生产进程复用 Kratos HTTP 监听器。旧版客户端依赖只在独立互通测试中加载。这样可以独立升级或移除兼容监听，保留其他入口的公开行为。
+
+兼容以真实客户端和明确的内容类型为验收单位。测试固定客户端版本并覆盖正常结果、业务错误和两帧消息。具体边界见 [SSE 与 go-micro v2 监听](../design/additional-listeners.md)。
