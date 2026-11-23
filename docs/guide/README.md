@@ -8,6 +8,7 @@ Kronos 的 Core 原语已可通过 Go 包使用。Assistant v1 提供一元 HTTP
 | --- | --- |
 | 判断 Kronos 是否适合我的 Go 服务 | 阅读框架的责任范围与依赖方向。[项目首页](../../README.md) · [架构概览](../architecture/overview.md) |
 | 使用 Core 包 | 核对执行边界、语言选择与消息回退，运行包级单元测试和示例。[Core 首版落地设计](../design/core-v1.md) |
+| 启动并等待后台任务 | 用 `core/runtime.Go` 运行批处理，使用观察回调接收终态。[协程契约](../design/runtime-go.md) · [后台任务示例](../../examples/runtimejob) |
 | 用 Proto 声明服务并提供 gRPC 和 HTTP | 确认服务定义、HTTP 映射和生成物的权威来源。[协议与传输决定](../adr/0001-protobuf-and-transport.md) |
 | 发布一个可取消的 Agent 流 | 了解公开流事件、客户端取消和确定性模型装配。[Agent 流式决定](../adr/0002-agent-stream.md) · [Blades 文本 Agent 适配](../design/blades-adapter.md) |
 | 为同一个服务提供中英文体验 | 分辨请求语言偏好、系统消息和模型生成内容，查看默认回退。[本地化决定](../adr/0003-localization.md) |

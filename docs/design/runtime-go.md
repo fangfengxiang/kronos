@@ -14,6 +14,14 @@
 
 普通的空选项可省略。`nil` 闭包在新 goroutine 内按调用失败处理。上层继续负责取消、等待与重试策略。标准库提供恢复和堆栈能力。[Go 规范](https://go.dev/ref/spec#Handling_panics) · [堆栈](https://pkg.go.dev/runtime/debug#Stack)
 
+## 后台任务示例
+
+文档汇总命令用 `core/runtime.Go` 执行有限的批处理，由调用者通过 `WithObserver` 等待终态。成功后读取文档数与 UTF-8 字节数。未正常返回时命令报告失败。示例使用标准库类型和已有的协程接口，终态通过 channel 交给调用者。[后台任务示例](../../examples/runtimejob) · [Go 可执行示例](https://go.dev/blog/examples)
+
 ## 验收
 
 用有期限的同步信号观察正常返回、任务 panic、回调 panic 和不同调用的选项隔离。检查标准错误兜底、堆栈、回调顺序、耗时和退出状态，并运行 Go 竞态检查。按仓库的跨层约束核对生产代码的导入图。
+
+从仓库根目录运行 `GOWORK=off go run ./examples/runtimejob`，预期显示两份文档共 12 字节。示例的 Go `Example` 断言同一输出，包内 `ExampleGo` 演示通过回调观察 panic 类型和终态。
+
+Go 1.25.0、Ubuntu 24.04 Linux arm64 运行 `GOWORK=off go -C core/runtime test -count=1 ./...` 和 `GOWORK=off go test -count=1 ./examples/runtimejob`，均通过。macOS arm64 两项以 `-race` 通过。两个平台的 `GOWORK=off go run ./examples/runtimejob` 均输出 `documents=2 bytes=12`。[包内示例](../../core/runtime/example_test.go) · [命令输出验证](../../examples/runtimejob/main_test.go)

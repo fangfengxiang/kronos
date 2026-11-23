@@ -12,12 +12,12 @@
 
 ## 逐库示例与审查结果
 
-18 个模块在 `examples/` 下有真实 Go 接线。`core/runtime` 和 `core/timezone` 缺目录级调用，时区已有包内可运行示例。两个平台工具分别服务协议生成和仓库验收。
+初审时 18 个模块在 `examples/` 下有真实 Go 接线。`core/runtime` 和 `core/timezone` 缺目录级调用，时区已有包内可运行示例。下表记录当前示例位置。两个平台工具分别服务协议生成和仓库验收。
 
 | 模块 | `examples/` 中的接线 | 包内 Go `Example` | 审查重点与结果 |
 | --- | --- | --- | --- |
 | `core/locale` | [Assistant 构建语言匹配器与文案目录](../../examples/assistant/cmd/assistant/service.go#L26-L38) | [文案回退](../../core/locale/catalog_test.go#L80) | 匹配、回退和目录快照有测试。 |
-| `core/runtime` | 缺 | 缺 | 原生测试覆盖 panic、`Goexit` 和回调隔离。[协程测试](../../core/runtime/coroutine_test.go) |
+| `core/runtime` | [后台文档任务](../../examples/runtimejob/main.go) | [观察 panic 终态](../../core/runtime/example_test.go) | 原生测试覆盖 panic、`Goexit` 和回调隔离。[协程测试](../../core/runtime/coroutine_test.go) |
 | `core/timezone` | 缺 | [按 IANA 时区换算日期](../../core/timezone/timezone_test.go#L76) | 夏令时切换与无效区域有测试。 |
 | `framework/app` | [Assistant 监听与应用生命周期](../../examples/assistant/cmd/assistant/main.go#L123-L182) | 缺 | 端口回滚、在途流排空与进程重载有原生 Go 测试。 |
 | `framework/localization` | [Assistant 协商及传播请求语言](../../examples/assistant/internal/binding/request.go#L21-L22) | 缺 | 权重顺序、回退和元数据快照有测试。 |
@@ -54,10 +54,11 @@
 
 ## 修复验收
 
-| 审查问题 | 修复效果与实测 |
+| 审查项 | 修复效果与实测 |
 | --- | --- |
 | 1 模型回调 panic | 模型执行协程恢复 panic 并返回 `ErrModelPanic`，SSE 沿既有失败路径结束。Linux arm64 和 macOS arm64 竞态分别通过适配模块及 SSE 三轮回归。[设计与实测](../design/blades-adapter.md#实测与复盘) |
 | 2 恢复后请求观测 | 共享业务入口记录恢复后的错误。真实 gRPC 一元及流式调用各产生一次失败计数、一个结束的错误 span 和一条关联日志。Linux arm64 三轮通过，macOS arm64 通过 Assistant 全部竞态回归。[设计与实测](../design/rpc-handler-recovery.md#实测记录) |
 | 3 MongoDB SRV 启动等待 | DNS 查询进行时，调用者取消或超时即收到原上下文错误。Linux arm64 与 macOS arm64 竞态的适配测试分别五轮通过，隔离网络中的 MongoDB 8.0.38 直连与 TextBackend 进程回归通过。[设计与实测](../design/mongodb-text-profiles.md#实测记录) |
 | 4 旧 RPC 响应边界 | 完整帧恰好 1 MiB 时成功，超限返回可解码的旧 RPC 错误。Linux 两版官方客户端和 Kronos 客户端验证了超限报错、裸编码大响应和双向互通。[设计与实测](../design/go-micro-v2-interop.md#实测与复盘) |
 | 5 厂商 SDK 导入边界 | CI 按 SDK 导入前缀检查适配归属。原生工作区夹具拦截 Kafka 生产导入，放行适配和专用测试导入。Linux arm64 与 macOS arm64 的工具测试和全仓导入检查均通过。[规则与实测](../design/go-verification.md#外部-sdk-归属) |
+| `core/runtime` 示例 | 后台任务示例从观察回调取得终态。Linux arm64 和 macOS arm64 均实跑命令并验证包内和应用 Go `Example`。[示例与实测](../design/runtime-go.md#后台任务示例) |

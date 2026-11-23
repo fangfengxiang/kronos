@@ -4,6 +4,7 @@ go 1.25.0
 
 require (
 	github.com/fangfengxiang/kronos/core/locale v0.0.0
+	github.com/fangfengxiang/kronos/core/runtime v0.0.0
 	github.com/fangfengxiang/kronos/framework/app v0.0.0
 	github.com/fangfengxiang/kronos/framework/localization v0.0.0
 	github.com/fangfengxiang/kronos/framework/log v0.0.0
@@ -32,6 +33,7 @@ require (
 
 replace (
 	github.com/fangfengxiang/kronos/core/locale => ./core/locale
+	github.com/fangfengxiang/kronos/core/runtime => ./core/runtime
 	github.com/fangfengxiang/kronos/framework/app => ./framework/app
 	github.com/fangfengxiang/kronos/framework/localization => ./framework/localization
 	github.com/fangfengxiang/kronos/framework/log => ./framework/log
