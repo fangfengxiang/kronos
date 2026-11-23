@@ -33,9 +33,15 @@ Assistant 命令在创建应用组件前读取并合并可选的启动配置，�
 - 关闭工作区构建 Assistant 命令并启动真实子进程，从四个入口调用后发送 `SIGTERM`，检查退出状态与端口释放。分别运行 `framework/app` 包的竞态检查和仓库跨模块检查。
 - 在真实回环监听上由发布钩子发起 HTTP 请求，确认监听可用，再撤销就绪。撤销和传输停止使用相同的截止时间，传输停止发生在撤销之后。模拟发布失败，观察错误聚合和可重新绑定的监听端口。
 
+### Order 双协议关停
+
+- 用一个 Order 实例同步接纳 gRPC 和 MicroRPC 请求，把两个业务处理都留在途。真实注销开始时暂停 etcd 撤销，验证两种协议仍能发现端口，但新请求收到 `SERVICE_UNAVAILABLE`，共享的业务实现只接纳先前两次调用。完成注销后允许在途请求正常返回，随后验证两端口均能重新绑定。
+- 让在途处理留到关停期限耗尽，验证 `Run` 返回期限错误，两种协议的请求和业务上下文均结束，两个端口均释放。用调用方显式取消与超时独立验证两种协议传递 Deadline 与 Cancel。继续使用 Kratos 的正常和强制关停能力。[gRPC 优雅关停](https://grpc.io/docs/guides/server-graceful-stop/) · [gRPC 期限](https://grpc.io/docs/guides/deadlines/) · [gRPC 取消](https://grpc.io/docs/guides/cancellation/)
+
 ## 实测与复盘
 
 - 首次验收使用 Go 1.25.0，全仓测试、分层检查和协议生成一致性通过。根模块及 `framework/app` 的 `GOWORK=off go vet ./...` 通过。当前使用仓库的原生 Go 验收入口。[验收命令](go-verification.md)
 - 模块测试验证第二个端口被占用后的重绑、已构造服务的失败回滚、错误聚合和探针状态。真实 HTTP、gRPC 的在途请求完成与超时取消用例在竞态检测下重复八次通过。
 - Assistant 子进程测试构建并启动命令，探针就绪后通过四个入口发起请求，发送 `SIGTERM` 后观测到退出码为零，四个端口均可重新绑定。容器、注册发现与模型接入由各自的纵切验收。
 - Go 1.25.0、Ubuntu 24.04 Linux arm64 运行 `GOWORK=off go -C framework/app test -count=3 ./...` 和 `GOWORK=off go test -count=1 ./examples/assistant/...`，均通过。macOS arm64 同组验证加 `-race` 通过。新测试在发布钩子内成功请求实际绑定的端口，观察到撤销先于传输停止且两者期限一致。部分发布失败后同时保留发布和撤销错误，端口可继续绑定。[发布钩子回归](../../framework/app/ready_test.go)
+- 同一 Linux 环境与真实 etcd v3.6.16 运行 `GOWORK=off go test -tags=interop,etcd_interop -count=4 -run 'TestOrder(Withdraws|Shutdown|Caller)|TestDiscoveredOrder' -v ./test/interop/microv2`。两种协议在摘流窗口拒绝新请求，处于在途状态的两个调用在真正注销后完整返回。另行验证单秒关停预算、监听可重新绑定、客户端 Deadline 传入处理器以及显式取消终止处理。[双协议生命周期测试](../../test/interop/microv2/drain_test.go)

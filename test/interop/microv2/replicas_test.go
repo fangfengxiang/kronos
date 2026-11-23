@@ -23,8 +23,8 @@ func TestDiscoveredOrderRotatesAndBypassesAnUnavailableReplica(t *testing.T) {
 			name := "orders.replicas." + rand.Text()
 			first := &orderReplica{label: "first"}
 			second := &orderReplica{label: "second"}
-			stopFirst := runOrderReplica(t, registry, name, first)
-			stopSecond := runOrderReplica(t, registry, name, second)
+			firstRun := runOrderReplica(t, registry, name, first)
+			secondRun := runOrderReplica(t, registry, name, second)
 			waitForInstances(t, registry, name, protocol, 2)
 
 			client, err := kronos.NewClient(kronos.Registry(registry), kronos.Name(name), kronos.Protocol(protocol))
@@ -38,9 +38,9 @@ func TestDiscoveredOrderRotatesAndBypassesAnUnavailableReplica(t *testing.T) {
 			if firstResult == secondResult || first.calls.Load() != 1 || second.calls.Load() != 1 {
 				t.Fatalf("round robin returned %q, %q with counts %d, %d", firstResult, secondResult, first.calls.Load(), second.calls.Load())
 			}
-			failed, stopFailed := first, stopFirst
+			failed, failedRun := first, firstRun
 			if firstResult == second.label {
-				failed, stopFailed = second, stopSecond
+				failed, failedRun = second, secondRun
 			}
 			failed.unavailable.Store(true)
 			if got := getOrderStatus(t, orders); got != secondResult || failed.calls.Load() != 2 {
@@ -49,7 +49,7 @@ func TestDiscoveredOrderRotatesAndBypassesAnUnavailableReplica(t *testing.T) {
 			if got := getOrderStatus(t, orders); got != secondResult || failed.calls.Load() != 2 {
 				t.Fatalf("cooldown selection = %q after %d calls to failed instance", got, failed.calls.Load())
 			}
-			stopFailed()
+			failedRun.stop()
 			waitForInstances(t, registry, name, protocol, 1)
 			if got := getOrderStatus(t, orders); got != secondResult {
 				t.Fatalf("call after withdrawal = %q, want %q", got, secondResult)
@@ -86,9 +86,29 @@ func openTestRegistry(t *testing.T) *etcd.Registry {
 	return registry
 }
 
-func runOrderReplica(t *testing.T, registry *etcd.Registry, name string, implementation order.OrderServiceUnaryService) context.CancelFunc {
+type runningOrder struct {
+	stop    context.CancelFunc
+	done    chan struct{}
+	err     error
+	checked bool
+}
+
+func (running *runningOrder) wait(t *testing.T) error {
 	t.Helper()
-	application, err := kronos.New(kronos.Name(name), kronos.Registry(registry), kronos.GRPC("127.0.0.1:0"), kronos.MicroRPC("127.0.0.1:0"))
+	select {
+	case <-running.done:
+		running.checked = true
+		return running.err
+	case <-time.After(12 * time.Second):
+		t.Fatal("Order replica did not release its endpoints")
+		return nil
+	}
+}
+
+func runOrderReplica(t *testing.T, registry kronos.RegistryProvider, name string, implementation order.OrderServiceUnaryService, options ...kronos.Option) *runningOrder {
+	t.Helper()
+	options = append([]kronos.Option{kronos.Name(name), kronos.Registry(registry), kronos.GRPC("127.0.0.1:0"), kronos.MicroRPC("127.0.0.1:0")}, options...)
+	application, err := kronos.New(options...)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -96,20 +116,20 @@ func runOrderReplica(t *testing.T, registry *etcd.Registry, name string, impleme
 		t.Fatal(err)
 	}
 	ctx, stop := context.WithCancel(t.Context())
-	result := make(chan error, 1)
-	go func() { result <- application.Run(ctx) }()
+	running := &runningOrder{stop: stop, done: make(chan struct{})}
+	go func() {
+		running.err = application.Run(ctx)
+		close(running.done)
+	}()
 	t.Cleanup(func() {
 		stop()
-		select {
-		case err := <-result:
-			if err != nil && !errors.Is(err, context.Canceled) {
+		if !running.checked {
+			if err := running.wait(t); err != nil && !errors.Is(err, context.Canceled) {
 				t.Error(err)
 			}
-		case <-time.After(12 * time.Second):
-			t.Error("Order replica did not release its endpoints")
 		}
 	})
-	return stop
+	return running
 }
 
 func waitForInstances(t *testing.T, registry *etcd.Registry, name string, protocol kronos.WireProtocol, count int) []string {
