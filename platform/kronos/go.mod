@@ -7,7 +7,6 @@ require (
 	github.com/fangfengxiang/kronos/framework/rpc v0.0.0
 	github.com/fangfengxiang/kronos/infra/microv2 v0.0.0
 	github.com/go-kratos/kratos/v3 v3.0.0
-	golang.org/x/sync v0.21.0
 	google.golang.org/grpc v1.82.1
 	google.golang.org/protobuf v1.36.11
 )

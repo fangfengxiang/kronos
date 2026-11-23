@@ -9,7 +9,6 @@ import (
 
 	"github.com/fangfengxiang/kronos/framework/rpc"
 	"github.com/fangfengxiang/kronos/platform/kronos/internal/transport"
-	"golang.org/x/sync/singleflight"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/reflect/protoreflect"
 	"google.golang.org/protobuf/types/descriptorpb"
@@ -29,10 +28,9 @@ type Client struct {
 	cancel      context.CancelFunc
 	closeClient func() error
 
-	mu      sync.Mutex
-	views   map[string]*serviceView
-	peers   map[*peer]struct{}
-	refresh singleflight.Group
+	mu    sync.Mutex
+	views map[string]*serviceView
+	peers map[*peer]struct{}
 }
 
 // NewClient constructs an independently owned client using the supplied

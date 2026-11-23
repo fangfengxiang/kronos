@@ -22,6 +22,7 @@ type serviceView struct {
 	next         int
 	refreshAfter time.Time
 	lookupFailed bool
+	lookupDone   chan struct{}
 }
 
 type peer struct {
@@ -33,34 +34,40 @@ type peer struct {
 }
 
 func (client *Client) resolve(ctx context.Context, serviceName string) error {
-	if fresh := client.freshView(serviceName); fresh {
-		return nil
+	if err := ctx.Err(); err != nil {
+		return err
 	}
-	result := client.refresh.DoChan(serviceName, func() (any, error) {
-		if !client.freshView(serviceName) {
-			client.refreshService(serviceName)
-		}
-		return nil, nil
-	})
-	select {
-	case <-result:
-		return ctx.Err()
-	case <-ctx.Done():
-		return ctx.Err()
-	}
-}
-
-func (client *Client) freshView(serviceName string) bool {
 	client.mu.Lock()
-	defer client.mu.Unlock()
 	if client.ctx.Err() != nil {
-		return true
+		client.mu.Unlock()
+		return ErrClientClosed
 	}
 	view := client.views[serviceName]
-	return view != nil && time.Now().Before(view.refreshAfter)
+	if view == nil {
+		view = &serviceView{connections: make(map[string]*peer)}
+		client.views[serviceName] = view
+	}
+	if time.Now().Before(view.refreshAfter) {
+		client.mu.Unlock()
+		return ctx.Err()
+	}
+	if view.lookupDone == nil {
+		view.lookupDone = make(chan struct{})
+		go client.refreshService(serviceName, view)
+	}
+	lookupDone := view.lookupDone
+	client.mu.Unlock()
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-client.ctx.Done():
+		return ErrClientClosed
+	case <-lookupDone:
+		return ctx.Err()
+	}
 }
 
-func (client *Client) refreshService(serviceName string) {
+func (client *Client) refreshService(serviceName string, view *serviceView) {
 	ctx, cancel := context.WithTimeout(client.ctx, discoveryBudget)
 	defer cancel()
 	addresses, err := client.config.registry.Lookup(ctx, serviceName, string(client.config.protocol))
@@ -72,11 +79,6 @@ func (client *Client) refreshService(serviceName string) {
 	var staleConnections []transport.Client
 	client.mu.Lock()
 	if client.ctx.Err() == nil {
-		view := client.views[serviceName]
-		if view == nil {
-			view = &serviceView{connections: make(map[string]*peer)}
-			client.views[serviceName] = view
-		}
 		view.refreshAfter = time.Now().Add(discoveryPeriod)
 		view.lookupFailed = err != nil
 		if err == nil {
@@ -94,6 +96,8 @@ func (client *Client) refreshService(serviceName string) {
 			}
 		}
 	}
+	close(view.lookupDone)
+	view.lookupDone = nil
 	client.mu.Unlock()
 	for _, connection := range staleConnections {
 		closeIdle(connection)
