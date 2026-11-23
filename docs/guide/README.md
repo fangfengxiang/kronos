@@ -73,6 +73,8 @@ curl -fsS http://127.0.0.1:8080/v1/assistant:run -H 'Content-Type: application/j
 
 命令入口订阅退出信号，应用撤销就绪并按配置预算结束在途调用。子进程测试展示 gRPC 调用和真实 `SIGTERM` 验收。[应用装配与关停](../design/app-lifecycle.md) · [进程测试](../../examples/assistant/cmd/assistant/main_test.go)
 
+进程在标准错误流记录逐行 JSON。可按 `event` 查询 `listener_starting`、`request_finished`、`reload_failed` 和 `app_stopped`，并用 `request_id` 关联业务调用。其他 Go 服务可通过 `log.NewJSON` 构造独立实例。[结构化日志](../design/structured-logging.md) · [可执行的 Go 示例](../../framework/log/example_test.go)
+
 ### 同时启用 SSE 与旧协议
 
 ```sh

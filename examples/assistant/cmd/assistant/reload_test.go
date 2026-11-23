@@ -67,15 +67,19 @@ func TestAssistantReloadKeepsAllListeners(t *testing.T) {
 	if err := os.Rename(binary, workingBinary); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(binary, []byte("#!/bin/sh\nexit 23\n"), 0700); err != nil {
-		t.Fatal(err)
+	build := exec.CommandContext(ctx, "go", "build", "-o", binary, "./testdata/reloadexit")
+	build.Env = append(os.Environ(), "GOWORK=off")
+	if output, err := build.CombinedOutput(); err != nil {
+		t.Fatalf("build failing candidate: %v\n%s", err, output)
 	}
 	if err := command.Process.Signal(syscall.SIGHUP); err != nil {
 		t.Fatal(err)
 	}
 	waitForReloadCondition(t, ctx, "failed candidate reported", func() bool {
 		logs, _ := os.ReadFile(logFile.Name())
-		return strings.Contains(string(logs), "exit status 23")
+		return hasLogRecord(logs, func(record processLog) bool {
+			return record.Event == "reload_failed" && strings.Contains(record.Error, "exit status 23")
+		})
 	})
 	if pid := readPID(pidFile); pid != initialPID {
 		t.Fatalf("failed replacement published PID %d", pid)
@@ -92,7 +96,11 @@ func TestAssistantReloadKeepsAllListeners(t *testing.T) {
 	}
 	waitForReloadCondition(t, ctx, "invalid candidate configuration reported", func() bool {
 		logs, _ := os.ReadFile(logFile.Name())
-		return strings.Contains(string(logs), `unknown option "unused-option"`) && strings.Contains(string(logs), "exit status 1")
+		return hasLogRecord(logs, func(record processLog) bool {
+			return record.Event == "app_failed" && strings.Contains(record.Error, `unknown option "unused-option"`)
+		}) && hasLogRecord(logs, func(record processLog) bool {
+			return record.Event == "reload_failed" && strings.Contains(record.Error, "exit status 1")
+		})
 	})
 	if pid := readPID(pidFile); pid != initialPID {
 		t.Fatalf("invalid candidate configuration published PID %d", pid)

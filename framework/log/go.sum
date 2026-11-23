@@ -1,0 +1,4 @@
+github.com/fangfengxiang/kronos/framework/request v0.0.0-20261123055539-816a8d9cbbb5 h1:rxfr0Xwon3F+nZ1pN7zIQDcs0of20aJSrFnpWKvW45g=
+github.com/fangfengxiang/kronos/framework/request v0.0.0-20261123055539-816a8d9cbbb5/go.mod h1:Kn/CgGP0RysWqMG4c7CI7VvR+fdK6f2JQatZv3aG1OA=
+github.com/go-kratos/kratos/v3 v3.0.0 h1:dCXqKoeo2Bo9jgC72YfuwJ3g7bPCkHeVeNGyZQ51bLE=
+github.com/go-kratos/kratos/v3 v3.0.0/go.mod h1:8l+0M5UPlm/5hWLvS+wzxHRVRv6sHMG6Lgb4+rw1KIs=

@@ -3,8 +3,10 @@ package main
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"io"
+	"log/slog"
 	"net"
 	"net/http"
 	"os"
@@ -19,6 +21,7 @@ import (
 	"github.com/fangfengxiang/kronos/examples/assistant"
 	wire "github.com/fangfengxiang/kronos/examples/assistant/internal/wire/kronos/assistant/v1"
 	"github.com/fangfengxiang/kronos/framework/localization"
+	"github.com/fangfengxiang/kronos/framework/request"
 	"github.com/fangfengxiang/kronos/framework/rpc"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -29,7 +32,7 @@ import (
 )
 
 func TestAdmissionRejectsRequestsBeforeReady(t *testing.T) {
-	service := admittingService{ready: func() bool { return false }, next: agentService{}}
+	service := admittingService{ready: func() bool { return false }, next: agentService{}, logger: slog.New(slog.DiscardHandler)}
 	_, err := service.Run(t.Context(), &assistant.RunRequest{Prompt: "你好"})
 	var failure *rpc.Error
 	if !errors.As(err, &failure) || failure.Code != rpc.Unavailable || failure.Reason != rpc.ServiceUnavailableReason {
@@ -79,7 +82,8 @@ func TestAssistantProcessShutsDownOnSIGTERM(t *testing.T) {
 	if !probeOK(ctx, httpEndpoint+"/livez") {
 		t.Fatal("liveness probe did not return HTTP 200")
 	}
-	assertAssistantListeners(t, ctx, httpAddress, grpcAddress, sseAddress, microAddress)
+	const callerID = "assistant-process_01"
+	assertAssistantListeners(t, request.WithID(ctx, callerID), httpAddress, grpcAddress, sseAddress, microAddress)
 
 	if err := command.Process.Signal(syscall.SIGTERM); err != nil {
 		t.Fatal(err)
@@ -91,6 +95,18 @@ func TestAssistantProcessShutsDownOnSIGTERM(t *testing.T) {
 		}
 	case <-ctx.Done():
 		t.Fatal("assistant did not exit after SIGTERM")
+	}
+	for line := range bytes.Lines(output.Bytes()) {
+		if !json.Valid(line) {
+			t.Errorf("process logged a non-JSON line: %s", line)
+		}
+	}
+	if !hasLogRecord(output.Bytes(), func(record processLog) bool {
+		return record.Event == "request_finished" && record.RequestID == callerID && record.Status == "OK" && record.DurationMicros != nil
+	}) || !hasLogRecord(output.Bytes(), func(record processLog) bool {
+		return record.Event == "request_finished" && record.RequestID == callerID && record.Status == string(rpc.InvalidArgument) && record.Reason == assistant.ErrorReasonInvalidPrompt.String()
+	}) || !hasLogRecord(output.Bytes(), func(record processLog) bool { return record.Event == "app_stopped" }) {
+		t.Fatal("process output is missing a correlated request, RPC failure, or shutdown event")
 	}
 	for _, address := range addresses {
 		listener, err := net.Listen("tcp", address)

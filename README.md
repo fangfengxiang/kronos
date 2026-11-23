@@ -18,6 +18,7 @@ Kronos 是一个面向全球应用的、协议优先、云原生、AI 原生、�
 | [一元 RPC 防腐层](docs/design/rpc-boundary.md) | 说明业务接口、Kratos 适配、期限与错误转换 |
 | [RPC 客户端协议选择](docs/design/rpc-client-protocol.md) | 说明标准 gRPC 与 go-micro v2 的调用选项和互通验收 |
 | [请求元数据](docs/design/request-metadata.md) | 说明请求标识、上下文传播和兼容监听行为 |
+| [结构化日志](docs/design/structured-logging.md) | 说明请求关联、日志安全字段和真实进程验收 |
 | [框架语言协商](docs/design/framework-localization.md) | 说明 HTTP、gRPC 和 SSE 的语言偏好与文案回退 |
 | [Blades 文本 Agent 适配](docs/design/blades-adapter.md) | 说明模型装配、文本增量、失败与取消 |
 | [应用装配与关停](docs/design/app-lifecycle.md) | 说明监听器所有权、探针与关停验收 |

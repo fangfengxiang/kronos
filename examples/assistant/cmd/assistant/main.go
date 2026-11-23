@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 	"flag"
-	"log"
+	"log/slog"
 	"net"
 	"os"
 	"os/signal"
@@ -13,21 +13,24 @@ import (
 
 	"github.com/fangfengxiang/kronos/examples/assistant"
 	"github.com/fangfengxiang/kronos/framework/app"
+	"github.com/fangfengxiang/kronos/framework/log"
 	"github.com/fangfengxiang/kronos/framework/rpc"
 	"github.com/fangfengxiang/kronos/infra/blades"
 )
 
 func main() {
+	logger := log.NewJSON(os.Stderr, nil).With("service", "assistant")
+	slog.SetDefault(logger)
 	ctx, stopSignals := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	err := run(ctx, os.Args[1:])
+	err := run(ctx, os.Args[1:], logger)
 	stopSignals()
 	if err != nil {
-		log.Printf("assistant: %v", err)
+		logger.ErrorContext(ctx, "assistant failed", "event", "app_failed", "error", err.Error())
 		os.Exit(1)
 	}
 }
 
-func run(ctx context.Context, args []string) error {
+func run(ctx context.Context, args []string, logger *slog.Logger) error {
 	flags := flag.NewFlagSet("assistant", flag.ContinueOnError)
 	configPath := flags.String(configPathFlag, "", "startup JSON config file")
 	httpAddress := flags.String("http", "127.0.0.1:8080", "HTTP listen address")
@@ -66,6 +69,7 @@ func run(ctx context.Context, args []string) error {
 		ready:  func() bool { return application.Ready() },
 		next:   agent,
 		stream: agent,
+		logger: logger,
 	}
 	bindings := []app.Binding{
 		{
@@ -98,39 +102,55 @@ func run(ctx context.Context, args []string) error {
 		return err
 	}
 	for _, binding := range bindings {
-		log.Printf("starting assistant %s listener at %s", binding.Name, binding.Address)
+		logger.InfoContext(ctx, "assistant listener starting", "event", "listener_starting", "listener", binding.Name, "address", binding.Address)
 	}
 	if *reloadPIDFile != "" {
 		reloadSignals := make(chan os.Signal, 1)
 		signal.Notify(reloadSignals, syscall.SIGHUP)
 		defer signal.Stop(reloadSignals)
-		return application.RunWithReload(ctx, app.ReloadConfig{
+		err = application.RunWithReload(ctx, app.ReloadConfig{
 			StartupTimeout: *reloadStartupTimeout,
 			PIDFile:        *reloadPIDFile,
-			OnError:        func(err error) { log.Print(err) },
+			OnError: func(err error) {
+				logger.WarnContext(ctx, "assistant reload failed", "event", "reload_failed", "error", err.Error())
+			},
 		}, reloadSignals)
+	} else {
+		err = application.Run(ctx)
 	}
-	return application.Run(ctx)
+	if err == nil {
+		logger.InfoContext(ctx, "assistant stopped", "event", "app_stopped")
+	}
+	return err
 }
 
 type admittingService struct {
 	ready  func() bool
 	next   assistant.Service
 	stream assistant.StreamService
+	logger *slog.Logger
 }
 
 func (service admittingService) Run(ctx context.Context, request *assistant.RunRequest) (*assistant.RunResponse, error) {
+	startedAt := time.Now()
 	if err := service.checkReadiness(); err != nil {
+		service.recordRequestResult(ctx, "Run", startedAt, err)
 		return nil, err
 	}
-	return service.next.Run(ctx, request)
+	response, err := service.next.Run(ctx, request)
+	service.recordRequestResult(ctx, "Run", startedAt, err)
+	return response, err
 }
 
 func (service admittingService) StreamRun(ctx context.Context, request *assistant.StreamRunRequest, emit func(string) error) error {
+	startedAt := time.Now()
 	if err := service.checkReadiness(); err != nil {
+		service.recordRequestResult(ctx, "StreamRun", startedAt, err)
 		return err
 	}
-	return service.stream.StreamRun(ctx, request, emit)
+	err := service.stream.StreamRun(ctx, request, emit)
+	service.recordRequestResult(ctx, "StreamRun", startedAt, err)
+	return err
 }
 
 func (service admittingService) checkReadiness() error {

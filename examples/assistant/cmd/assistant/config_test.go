@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"flag"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -62,7 +63,7 @@ func TestAssistantRejectsInvalidStartupConfig(t *testing.T) {
 			}
 			ctx, cancel := context.WithCancel(t.Context())
 			cancel()
-			err := run(ctx, []string{"-config", path, "-sse="})
+			err := run(ctx, []string{"-config", path, "-sse="}, slog.New(slog.DiscardHandler))
 			if err == nil || !strings.Contains(err.Error(), testCase.message) || !strings.Contains(err.Error(), strconv.Quote(path)) {
 				t.Fatalf("run error = %v, want %q and the file path", err, testCase.message)
 			}
