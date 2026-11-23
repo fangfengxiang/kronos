@@ -7,6 +7,7 @@ import (
 	"errors"
 	"net"
 	"os/exec"
+	"strings"
 	"testing"
 	"time"
 
@@ -39,6 +40,18 @@ func TestGoMicroV2UpstreamInterop(t *testing.T) {
 		}
 	})
 
+	t.Run("Kronos response limit", func(t *testing.T) {
+		client, err := assistant.NewRPCClient(t.Context(), listener.Addr().String(), time.Second, rpc.WithProtocol(rpc.ProtocolMicroV2))
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer client.Close()
+		_, err = client.Run(t.Context(), &assistant.RunRequest{Prompt: "large response"})
+		var failure *rpc.Error
+		if !errors.As(err, &failure) || failure.Code != rpc.Internal || failure.Reason != assistant.ErrorReasonRunFailed.String() {
+			t.Fatalf("public error for oversized response = %v", err)
+		}
+	})
 	for _, version := range []string{"v2.0.0", "v2.9.1"} {
 		t.Run(version, func(t *testing.T) {
 			binary := buildUpstreamFixture(t, version)
@@ -59,6 +72,9 @@ func TestGoMicroV2UpstreamInterop(t *testing.T) {
 type echoService struct{}
 
 func (echoService) Run(_ context.Context, input *assistant.RunRequest) (*assistant.RunResponse, error) {
+	if input.GetPrompt() == "large response" {
+		return &assistant.RunResponse{Text: strings.Repeat("x", 1<<20)}, nil
+	}
 	if input.GetPrompt() == "" {
 		return nil, &rpc.Error{Code: rpc.InvalidArgument, Reason: assistant.ErrorReasonInvalidPrompt.String(), Message: "prompt must not be blank"}
 	}

@@ -148,16 +148,30 @@ func writeResponse(response http.ResponseWriter, request *http.Request, contentT
 			header.Set(key, value)
 		}
 	}
-	var errorJSON []byte
-	if failure != nil {
-		errorJSON, _ = json.Marshal(wireError{
-			ID: failure.Reason, Code: failure.Code, Detail: failure.Message, Status: http.StatusText(failure.Code),
-		})
-		header.Set("Micro-Error", string(errorJSON))
-	}
+	errorJSON := marshalWireError(failure)
 	if contentType == framedContentType {
-		payload = encodeFrames(frame, payload, errorJSON)
+		payload = encodeFrames(frame, payload, errorJSON, maxResponseBytes)
+		if payload == nil {
+			errorJSON = marshalWireError(&Error{
+				Code: http.StatusInternalServerError, Reason: "RESPONSE_TOO_LARGE", Message: "RPC response exceeds size limit",
+			})
+			// Keep the sequence for correlation and omit the original method.
+			payload = encodeFrames(envelope{sequence: frame.sequence}, nil, errorJSON, maxResponseBytes)
+		}
+	}
+	if errorJSON != nil {
+		header.Set("Micro-Error", string(errorJSON))
 	}
 	response.WriteHeader(http.StatusOK)
 	_, _ = response.Write(payload)
+}
+
+func marshalWireError(failure *Error) []byte {
+	if failure == nil {
+		return nil
+	}
+	data, _ := json.Marshal(wireError{
+		ID: failure.Reason, Code: failure.Code, Detail: failure.Message, Status: http.StatusText(failure.Code),
+	})
+	return data
 }

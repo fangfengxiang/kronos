@@ -186,6 +186,8 @@ curl --no-buffer -fsS http://127.0.0.1:8081/v1/assistant:streamRun \
 
 SSE 的请求体使用 JSON。调用示例的 go-micro v2 服务名是 `kronos.assistant.v1.Assistant`，端点名是 `Assistant.Run`。Go 互通测试自行启动服务，按版本构建官方客户端和服务端。首次运行需要访问 Go 模块代理或使用模块缓存。[原生 Go 互通验收](../design/go-micro-v2-interop.md) · [可执行协议选项示例](../../framework/rpc/example_test.go)
 
+旧协议的有帧响应上限为 1 MiB，包含两个长度字段、信封和业务消息。超限时服务端使用旧 RPC 错误信封报告 `RESPONSE_TOO_LARGE`，Assistant 的 Kronos 客户端继续返回 `ERROR_REASON_RUN_FAILED`。[兼容范围](../design/additional-listeners.md#go-micro-v2-兼容范围)
+
 ```sh
 go test -tags=interop -count=1 ./test/interop/microv2
 ```

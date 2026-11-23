@@ -56,5 +56,17 @@ func main() {
 			log.Fatalf("%s returned the wrong public error: %v", contentType, failure)
 		}
 		fmt.Println(contentType, "success and public error verified")
+		err := rpcClient.Call(ctx, newRequest("large response"), &result, client.WithAddress(os.Args[1]))
+		if contentType == "application/proto-rpc" {
+			if err == nil {
+				log.Fatal("framed client accepted an oversized response")
+			}
+			if failure := microerrors.Parse(err.Error()); failure.Code != 500 || failure.Id != "RESPONSE_TOO_LARGE" {
+				log.Fatalf("framed client returned the wrong size error: %v", failure)
+			}
+		} else if err != nil || len(result.Text) != 1<<20 {
+			log.Fatalf("raw Protobuf client received %d bytes, error %v", len(result.Text), err)
+		}
+		fmt.Println(contentType, "large response behavior verified")
 	}
 }

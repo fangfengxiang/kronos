@@ -6,6 +6,8 @@ import (
 	"google.golang.org/protobuf/encoding/protowire"
 )
 
+const maxResponseBytes = 1 << 20
+
 type envelope struct {
 	method   string
 	sequence uint64
@@ -59,7 +61,10 @@ func splitFrame(input []byte) (frame, remainder []byte, valid bool) {
 	return input[:length], input[length:], true
 }
 
-func encodeFrames(header envelope, payload, failure []byte) []byte {
+func encodeFrames(header envelope, payload, failure []byte, maxBytes int) []byte {
+	if len(payload) > maxBytes || len(failure) > maxBytes || len(header.method) > maxBytes {
+		return nil
+	}
 	encodedHeader := protowire.AppendTag(nil, 1, protowire.BytesType)
 	encodedHeader = protowire.AppendString(encodedHeader, header.method)
 	encodedHeader = protowire.AppendTag(encodedHeader, 2, protowire.Fixed64Type)
@@ -68,7 +73,12 @@ func encodeFrames(header envelope, payload, failure []byte) []byte {
 		encodedHeader = protowire.AppendTag(encodedHeader, 3, protowire.BytesType)
 		encodedHeader = protowire.AppendBytes(encodedHeader, failure)
 	}
-	output := make([]byte, 0, 8+len(encodedHeader)+len(payload))
+	const lengthPrefixesBytes = 2 * 4
+	size := lengthPrefixesBytes + len(encodedHeader) + len(payload)
+	if size > maxBytes {
+		return nil
+	}
+	output := make([]byte, 0, size)
 	output = binary.BigEndian.AppendUint32(output, uint32(len(encodedHeader)))
 	output = append(output, encodedHeader...)
 	output = binary.BigEndian.AppendUint32(output, uint32(len(payload)))

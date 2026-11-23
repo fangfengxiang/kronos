@@ -6,7 +6,7 @@
 
 | 方向 | 验收行为 |
 | --- | --- |
-| 官方客户端 → Kronos | 用 `v2.0.0` 和 `v2.9.1` 分别以 `application/protobuf` 和 `application/proto-rpc` 验证 Unicode 响应和空提示词错误。 |
+| 官方客户端 → Kronos | 用 `v2.0.0` 和 `v2.9.1` 分别以两种编码验证 Unicode 响应和空提示词错误。裸 Protobuf 验证读取大响应，有帧编码验证可解码的超限 RPC 错误。 |
 | Kronos 客户端 → 官方服务端 | 使用公开的 `rpc.WithProtocol(rpc.ProtocolMicroV2)` 选择兼容传输，验证 Unicode 响应及稳定的 `ERROR_REASON_INVALID_PROMPT`。 |
 
 夹具由 Go 测试管理构建、就绪、超时及释放。上游服务端通过 stdin EOF 收到结束请求。构建或调用失败时，对应子测试输出版本、阶段和进程证据。首次构建需要访问公共 Go 模块代理或等效缓存。
@@ -26,3 +26,4 @@
 
 - Go 1.25.0、Ubuntu 24.04 Linux arm64 上运行 `GOWORK=off go test -tags=interop -count=1 -v ./test/interop/microv2`。两个版本都通过官方客户端到 Kronos 的两种 MIME 请求及 Kronos 到官方服务端的请求。成功返回 `你好`，失败返回稳定的提示词错误。测试收到两个官方服务端正常退出结果。[Go 互通测试](../../test/interop/microv2/interop_test.go)
 - macOS arm64 上运行 `GOWORK=off go test -race -tags=interop -count=1 -v ./test/interop/microv2`，两版通过。复核将临时构建目录、进程输入、就绪时间和回收时间交给同一个子测试管理。`go -C framework/rpc test -count=1 ./...` 在 Linux 和 macOS 通过，并执行协议选项示例。[官方夹具生命周期](../../test/interop/microv2/fixture_test.go) · [Go 选项示例](../../framework/rpc/example_test.go)
+- 在 Ubuntu 24.04 Linux arm64 使用 Go 1.25.0 复跑 `GOWORK=off go test -tags=interop -count=1 -v ./test/interop/microv2`。两版官方客户端均可读取裸 Protobuf 大响应，并在有帧请求解码 `RESPONSE_TOO_LARGE`。Kronos 的公开客户端收到 `ERROR_REASON_RUN_FAILED`，双向 Unicode 与业务错误回归通过。[大响应互通](../../test/interop/microv2/interop_test.go)

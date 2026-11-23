@@ -34,7 +34,7 @@ func TestClientSendsLegacyEnvelopeAndDeadline(t *testing.T) {
 			t.Errorf("unexpected request frames: %v %x", frame, body)
 		}
 		response.Header().Set("Content-Type", framedContentType)
-		_, _ = response.Write(encodeFrames(frame, payload, nil))
+		_, _ = response.Write(encodeFrames(frame, payload, nil, maxResponseBytes))
 	}))
 	defer server.Close()
 	client, err := NewClient(server.URL)
@@ -57,7 +57,7 @@ func TestClientRejectsInvalidResponse(t *testing.T) {
 		body []byte
 		want string
 	}{
-		{"mismatched sequence", encodeFrames(envelope{sequence: 99}, nil, nil), "invalid sequence"},
+		{"mismatched sequence", encodeFrames(envelope{sequence: 99}, nil, nil, maxResponseBytes), "invalid sequence"},
 		{"malformed frame", []byte{255, 255, 255, 255}, "invalid frames"},
 		{"oversized response", make([]byte, maxResponseBytes+1), "response exceeds size limit"},
 	} {
@@ -71,7 +71,7 @@ func TestClientRejectsInvalidResponse(t *testing.T) {
 }
 
 func TestClientMatchesOfficialLegacyErrorByHeader(t *testing.T) {
-	body := encodeFrames(envelope{}, nil, []byte(`{"id":"INVALID_PROMPT","code":400,"detail":"empty prompt"}`))
+	body := encodeFrames(envelope{}, nil, []byte(`{"id":"INVALID_PROMPT","code":400,"detail":"empty prompt"}`), maxResponseBytes)
 	for _, responseID := range []string{"12", "13"} {
 		response := &http.Response{StatusCode: http.StatusOK, Header: http.Header{"Content-Type": {framedContentType}}, Body: io.NopCloser(bytes.NewReader(body))}
 		response.Header.Set("Micro-Id", responseID)

@@ -16,8 +16,6 @@ import (
 	"time"
 )
 
-const maxResponseBytes = 1 << 20
-
 // Client sends unary proto-rpc requests to a direct go-micro v2 endpoint.
 // A Client can be used concurrently.
 type Client struct {
@@ -47,12 +45,9 @@ func NewClient(address string) (*Client, error) {
 
 // Call sends a Protobuf payload and returns the decoded response payload.
 func (client *Client) Call(ctx context.Context, service, endpoint string, payload []byte) ([]byte, error) {
-	if len(payload) > maxRequestBytes || len(endpoint) > maxRequestBytes {
-		return nil, errors.New("go-micro v2 request exceeds size limit")
-	}
 	sequence := client.sequence.Add(1)
-	frame := encodeFrames(envelope{method: endpoint, sequence: sequence}, payload, nil)
-	if len(frame) > maxRequestBytes {
+	frame := encodeFrames(envelope{method: endpoint, sequence: sequence}, payload, nil, maxRequestBytes)
+	if frame == nil {
 		return nil, errors.New("go-micro v2 request exceeds size limit")
 	}
 	request, err := http.NewRequestWithContext(ctx, http.MethodPost, client.address, bytes.NewReader(frame))
