@@ -43,6 +43,10 @@ legacyClient, err := assistant.NewRPCClient(ctx, "127.0.0.1:9091", time.Second,
     rpc.WithProtocol(rpc.ProtocolMicroV2))
 ```
 
+### 关联请求
+
+服务方法通过 `request.ID(ctx)` 读取请求标识。将同一个上下文传给 Kronos 的 HTTP 或 gRPC 客户端可继续传播该标识，调用方可用 `request.WithID` 设置自己的标识。go-micro v2 服务方法会收到本次调用的本地标识。[可执行的 Go 示例](../../framework/request/example_test.go) · [请求元数据契约](../design/request-metadata.md)
+
 ### 选择错误文案语言
 
 HTTP 和 SSE 使用 `Accept-Language`，标准 gRPC 使用 `accept-language` 元数据。Kronos 的 HTTP 和标准 gRPC 一元客户端通过 `framework/localization` 为单次调用传入偏好。

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	wire "github.com/fangfengxiang/kronos/examples/assistant/internal/wire/kronos/assistant/v1"
+	"github.com/fangfengxiang/kronos/framework/request"
 	"github.com/fangfengxiang/kronos/framework/rpc"
 	"github.com/fangfengxiang/kronos/infra/microv2"
 	kratoserrors "github.com/go-kratos/kratos/v3/errors"
@@ -23,11 +24,11 @@ func NewMicroV2Server(listener net.Listener, run runHandler) rpc.Server {
 	nativeServer := kratoshttp.NewServer(kratoshttp.Listener(listener), kratoshttp.Timeout(0))
 	nativeServer.Handle("/", microv2.NewHandler(microV2Service, map[string]microv2.Unary{
 		microV2Endpoint: func(ctx context.Context, payload []byte) ([]byte, error) {
-			var request wire.RunRequest
-			if err := proto.Unmarshal(payload, &request); err != nil {
+			var input wire.RunRequest
+			if err := proto.Unmarshal(payload, &input); err != nil {
 				return nil, &microv2.Error{Code: http.StatusBadRequest, Reason: invalidRequestReason, Message: invalidRequestMessage}
 			}
-			response, err := run(ctx, &request)
+			response, err := run(request.WithIncomingID(ctx), &input)
 			if err != nil {
 				return nil, toMicroV2Error(err)
 			}

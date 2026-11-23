@@ -6,6 +6,7 @@ require (
 	github.com/fangfengxiang/kronos/core/locale v0.0.0
 	github.com/fangfengxiang/kronos/framework/app v0.0.0
 	github.com/fangfengxiang/kronos/framework/localization v0.0.0
+	github.com/fangfengxiang/kronos/framework/request v0.0.0
 	github.com/fangfengxiang/kronos/framework/rpc v0.0.0
 	github.com/fangfengxiang/kronos/infra/blades v0.0.0
 	github.com/fangfengxiang/kronos/infra/configfile v0.0.0
@@ -20,6 +21,7 @@ replace (
 	github.com/fangfengxiang/kronos/core/locale => ./core/locale
 	github.com/fangfengxiang/kronos/framework/app => ./framework/app
 	github.com/fangfengxiang/kronos/framework/localization => ./framework/localization
+	github.com/fangfengxiang/kronos/framework/request => ./framework/request
 	github.com/fangfengxiang/kronos/framework/rpc => ./framework/rpc
 	github.com/fangfengxiang/kronos/infra/blades => ./infra/blades
 	github.com/fangfengxiang/kronos/infra/configfile => ./infra/configfile

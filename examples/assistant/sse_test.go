@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/fangfengxiang/kronos/examples/assistant"
+	"github.com/fangfengxiang/kronos/framework/request"
 	"github.com/fangfengxiang/kronos/infra/blades"
 )
 
@@ -30,8 +31,12 @@ func TestSSEFailureAndDisconnect(t *testing.T) {
 	t.Cleanup(func() { _ = listener.Close() })
 	providerFailure := errors.New("hidden provider error")
 	workStopped := make(chan error, 1)
+	const callerID = "sse-client.01"
 	runner, err := blades.New("assistant", func(ctx context.Context, prompt string) iter.Seq2[string, error] {
 		return func(yield func(string, error) bool) {
+			if id := request.ID(ctx); id != callerID {
+				t.Errorf("SSE model context ID = %q, want %q", id, callerID)
+			}
 			if prompt == "fail early" {
 				yield("", providerFailure)
 				return
@@ -71,13 +76,14 @@ func TestSSEFailureAndDisconnect(t *testing.T) {
 	endpoint := "http://" + listener.Addr().String() + "/v1/assistant:streamRun"
 	post := func(body string) *http.Response {
 		t.Helper()
-		request, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, strings.NewReader(body))
+		httpRequest, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, strings.NewReader(body))
 		if err != nil {
 			t.Fatal(err)
 		}
-		request.Header.Set("Content-Type", "application/json")
-		request.Header.Set("Accept", "text/event-stream")
-		response, err := http.DefaultClient.Do(request)
+		httpRequest.Header.Set("Content-Type", "application/json")
+		httpRequest.Header.Set("Accept", "text/event-stream")
+		httpRequest.Header.Set(request.IDHeader, callerID)
+		response, err := http.DefaultClient.Do(httpRequest)
 		if err != nil {
 			t.Fatal(err)
 		}

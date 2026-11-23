@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/fangfengxiang/kronos/examples/assistant"
+	"github.com/fangfengxiang/kronos/framework/request"
 	"github.com/fangfengxiang/kronos/framework/rpc"
 )
 
@@ -19,8 +20,8 @@ type assistantService struct {
 	requestStopped chan error
 }
 
-func (service *assistantService) Run(ctx context.Context, request *assistant.RunRequest) (*assistant.RunResponse, error) {
-	switch request.GetPrompt() {
+func (service *assistantService) Run(ctx context.Context, input *assistant.RunRequest) (*assistant.RunResponse, error) {
+	switch input.GetPrompt() {
 	case "":
 		return nil, &rpc.Error{
 			Code:    rpc.InvalidArgument,
@@ -29,13 +30,15 @@ func (service *assistantService) Run(ctx context.Context, request *assistant.Run
 		}
 	case "fail":
 		return nil, errors.New("private provider failure")
+	case "request-id":
+		return &assistant.RunResponse{Text: request.ID(ctx)}, nil
 	case "wait":
 		close(service.requestStarted)
 		<-ctx.Done()
 		service.requestStopped <- ctx.Err()
 		return nil, ctx.Err()
 	default:
-		return &assistant.RunResponse{Text: request.GetPrompt()}, nil
+		return &assistant.RunResponse{Text: input.GetPrompt()}, nil
 	}
 }
 
@@ -91,6 +94,23 @@ func TestAssistantThroughKronosPublicAPI(t *testing.T) {
 			response, err := client.Run(ctx, &assistant.RunRequest{Prompt: "你好"})
 			if err != nil || response.GetText() != "你好" {
 				t.Fatalf("Run() = (%v, %v)", response, err)
+			}
+			idRequest := &assistant.RunRequest{Prompt: "request-id"}
+			generated, err := client.Run(ctx, idRequest)
+			if err != nil || generated.GetText() == "" {
+				t.Fatalf("run without a caller ID = (%v, %v)", generated, err)
+			}
+			const callerID = "assistant_request-01"
+			withID, err := client.Run(request.WithID(ctx, callerID), idRequest)
+			if err != nil || withID.GetText() == "" {
+				t.Fatalf("run with a caller ID = (%v, %v)", withID, err)
+			}
+			if transport.name == "go-micro v2" {
+				if withID.GetText() == callerID || withID.GetText() == generated.GetText() {
+					t.Fatalf("legacy call received a nonlocal ID %q", withID.GetText())
+				}
+			} else if withID.GetText() != callerID {
+				t.Fatalf("service received ID %q, want %q", withID.GetText(), callerID)
 			}
 			if transport.name == "HTTP" {
 				assertMalformedJSONIsSanitized(t, ctx, listener.Addr().String())

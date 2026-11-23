@@ -18,7 +18,7 @@ func NewHTTPClient(ctx context.Context, endpoint string, defaultTimeout time.Dur
 	}
 	transport := &http.Transport{Proxy: http.ProxyFromEnvironment, ForceAttemptHTTP2: true}
 	nativeClient, err := kratoshttp.NewClient(ctx, kratoshttp.WithEndpoint(endpoint), kratoshttp.WithTimeout(0),
-		kratoshttp.WithTransport(transport), kratoshttp.WithMiddleware(propagateOutgoingLanguage))
+		kratoshttp.WithTransport(transport), kratoshttp.WithMiddleware(propagateOutgoingRequest))
 	if err != nil {
 		return nil, fromWireError(err)
 	}
@@ -33,7 +33,7 @@ func NewHTTPClient(ctx context.Context, endpoint string, defaultTimeout time.Dur
 
 func NewGRPCClient(ctx context.Context, endpoint string, defaultTimeout time.Duration) (*rpc.UnaryClient[wire.RunRequest, wire.RunResponse], error) {
 	connection, err := kratosgrpc.NewClient(ctx, kratosgrpc.WithEndpoint(endpoint), kratosgrpc.WithTimeout(0),
-		kratosgrpc.WithMiddleware(propagateOutgoingLanguage))
+		kratosgrpc.WithMiddleware(propagateOutgoingRequest))
 	if err != nil {
 		return nil, fromWireError(err)
 	}
