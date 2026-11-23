@@ -124,6 +124,12 @@ go run ./examples/textbackend/cmd/textbackend -mysql-profile greeting
 go run ./examples/textbackend/cmd/textbackend -mysql-profile greeting -profile-cache-ttl 5s -profile-cache-namespace demo
 ```
 
+用 MongoDB 存储文本配置时，在目标数据库的 `text_backend_profiles` 集合写入 `{_id: "greeting", output_prefix: "你好："}`，再设置 `KRONOS_TEXTBACKEND_MONGODB_URI` 并选择配置 ID。`-mongo-database` 默认为 `kronos`。同一进程选择一个文本配置来源。[MongoDB 用法与实测](../design/mongodb-text-profiles.md) · [可执行的 Go 示例](../../infra/mongodb/integration_test.go)
+
+```sh
+go run ./examples/textbackend/cmd/textbackend -mongo-profile greeting -mongo-database kronos
+```
+
 ### 通过 Docker Compose 运行
 
 从仓库根目录构建并等待容器就绪。HTTP、gRPC、SSE 和 go-micro v2 分别使用容器端口 `8080`、`9090`、`8081`、`9091`，按下方命令查询宿主回环地址。挂载配置定义各监听和应用关停预算。[Compose 配置](../../compose.yaml) · [容器启动配置](../../examples/assistant/deploy/assistant.json)

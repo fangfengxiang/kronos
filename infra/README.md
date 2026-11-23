@@ -12,6 +12,8 @@
 
 [`infra/microv2`](microv2) 是独立兼容模块，提供 go-micro v2 的入站一元 Protobuf 适配和出站 `proto-rpc` 直连。[兼容监听设计](../docs/design/additional-listeners.md) · [RPC 客户端协议](../docs/design/rpc-client-protocol.md)
 
+[`infra/mongodb`](mongodb) 提供独立连接、类型化文档读取、原子替换和删除。[MongoDB 类型化文档](../docs/design/mongodb-text-profiles.md)
+
 [`infra/mysql`](mysql) 建立并校验独立的标准 MySQL 连接池，提供稳定的建池和重复键错误语义。[MySQL 建池与文本配置](../docs/design/mysql-text-profiles.md)
 
 [`infra/oteltrace`](oteltrace) 复用 Kratos OTel tracer 与 SDK，通过标准上下文记录请求 span 并向 Collector 导出。[请求链路追踪](../docs/design/request-tracing.md)

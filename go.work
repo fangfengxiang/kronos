@@ -14,6 +14,7 @@ use (
 	./infra/configfile
 	./infra/consul
 	./infra/microv2
+	./infra/mongodb
 	./infra/mysql
 	./infra/oteltrace
 	./infra/prometheus

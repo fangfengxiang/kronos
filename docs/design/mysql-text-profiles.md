@@ -4,6 +4,8 @@ TextBackend 可以从 MySQL 读取选定的文本配置。业务用例接收一�
 
 启用 Redis 后，业务前缀源按 TTL 在缓存与 MySQL 间读取。[Redis 缓存](redis-text-profile-cache.md)
 
+使用文档数据库的部署可以选择同一入口的 MongoDB 配置源。[MongoDB 类型化文档](mongodb-text-profiles.md)
+
 ## 契约与所有权
 
 - `infra/mysql` 是独立 Go 模块。`Open` 取得一个标准库 `*sql.DB`，在调用者上下文内完成 `PingContext`。失败释放连接资源，已成功的池由调用方关闭。连接上限、空闲上限和最大存活时间沿用 `database/sql`，零值采用标准库默认设置。

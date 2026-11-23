@@ -17,6 +17,7 @@ import (
 	"github.com/fangfengxiang/kronos/framework/log"
 	"github.com/fangfengxiang/kronos/framework/rpc"
 	"github.com/fangfengxiang/kronos/infra/consul"
+	"github.com/fangfengxiang/kronos/infra/mongodb"
 	"github.com/fangfengxiang/kronos/infra/redis"
 )
 
@@ -38,6 +39,8 @@ func run(ctx context.Context, arguments []string) (runError error) {
 	consulEndpoint := flags.String("consul", "", "Consul HTTP(S) agent URL (empty disables registration)")
 	advertiseAddress := flags.String("advertise-grpc", "", "advertised gRPC host:port (defaults to the bound address)")
 	profileName := flags.String("mysql-profile", "", "text profile name in MySQL (empty uses the built-in profile)")
+	mongoProfileName := flags.String("mongo-profile", "", "text profile ID in MongoDB")
+	mongoDatabase := flags.String("mongo-database", "kronos", "MongoDB database for text profiles")
 	cacheTTL := flags.Duration("profile-cache-ttl", 0, "Redis TTL for MySQL profiles (zero disables the cache)")
 	cacheNamespace := flags.String("profile-cache-namespace", "default", "namespace for MySQL profile keys in Redis")
 	cacheCluster := flags.Bool("profile-cache-cluster", false, "use Redis Cluster for the profile cache")
@@ -49,6 +52,9 @@ func run(ctx context.Context, arguments []string) (runError error) {
 	}
 	if flags.NArg() != 0 {
 		return errors.New("unexpected positional arguments")
+	}
+	if *profileName != "" && *mongoProfileName != "" {
+		return errors.New("configure only one of mysql-profile and mongo-profile")
 	}
 	if *cacheTTL != 0 && (*cacheTTL < time.Millisecond || *profileName == "" || strings.TrimSpace(*cacheNamespace) == "") {
 		return errors.New("profile cache requires a MySQL profile, a namespace, and a TTL of at least one millisecond")
@@ -65,12 +71,22 @@ func run(ctx context.Context, arguments []string) (runError error) {
 		return errors.New("advertise-grpc requires a Consul agent URL")
 	}
 	service := textService{}
-	if *profileName != "" {
+	switch {
+	case *profileName != "":
 		profile, err := openMySQLProfile(ctx, *profileName, os.Getenv("KRONOS_TEXTBACKEND_MYSQL_DSN"))
 		if err != nil {
 			return err
 		}
 		defer func() { runError = errors.Join(runError, profile.pool.Close()) }()
+		service.prefixSource = profile
+	case *mongoProfileName != "":
+		profile, err := openMongoProfile(ctx, mongodb.Config{
+			URI: os.Getenv("KRONOS_TEXTBACKEND_MONGODB_URI"), Database: *mongoDatabase,
+		}, *mongoProfileName)
+		if err != nil {
+			return err
+		}
+		defer func() { runError = errors.Join(runError, profile.close(ctx)) }()
 		service.prefixSource = profile
 	}
 	if *cacheTTL > 0 {
