@@ -1,0 +1,32 @@
+name: kronos
+
+services:
+  assistant:
+    build:
+      context: .
+      dockerfile: examples/assistant/deploy/Dockerfile
+    command: ["-config", "/etc/kronos/assistant.json"]
+    configs:
+      - source: assistant-config
+        target: /etc/kronos/assistant.json
+    ports:
+      - target: 8080
+        host_ip: 127.0.0.1
+      - target: 9090
+        host_ip: 127.0.0.1
+      - target: 8081
+        host_ip: 127.0.0.1
+      - target: 9091
+        host_ip: 127.0.0.1
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/readyz"]
+      start_period: 1s
+      interval: 1s
+      timeout: 2s
+      retries: 8
+    stop_signal: SIGTERM
+    stop_grace_period: 10s
+
+configs:
+  assistant-config:
+    file: ./examples/assistant/deploy/assistant.json

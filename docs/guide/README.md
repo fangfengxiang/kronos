@@ -10,7 +10,7 @@ Kronos 的 Core 原语已可通过 Go 包使用。Assistant v1 提供一元 HTTP
 | 发布一个可取消的 Agent 流 | 了解公开流事件、客户端取消和确定性模型装配。[Agent 流式决定](../adr/0002-agent-stream.md) · [Blades 文本 Agent 适配](../design/blades-adapter.md) |
 | 为同一个服务提供中英文体验 | 分辨请求语言偏好、系统消息和模型生成内容，查看默认回退。[本地化决定](../adr/0003-localization.md) |
 | 按用户时区展示时刻或归档日报 | 用 `core/timezone` 解析 IANA 时区并计算当地日期。精简部署可通过 `-tags timetzdata` 内嵌规则。[Core 时区](../design/core-timezone.md) · [可运行示例](../../core/timezone/timezone_test.go) |
-| 在本机复现端到端测试 | 按纵切方案核对计划中的镜像、探针、容器退出与 CI 证据。[首条纵切](../design/first-vertical-slice.md) |
+| 在本机复现端到端测试 | 用 Compose 和 Go 测试验证镜像、探针、真实调用与容器关停。[容器交付](../design/assistant-compose.md) |
 
 ## 验证独立模块
 
@@ -74,6 +74,23 @@ curl -fsS http://127.0.0.1:8080/v1/assistant:run -H 'Content-Type: application/j
 命令入口订阅退出信号，应用撤销就绪并按配置预算结束在途调用。子进程测试展示 gRPC 调用和真实 `SIGTERM` 验收。[应用装配与关停](../design/app-lifecycle.md) · [进程测试](../../examples/assistant/cmd/assistant/main_test.go)
 
 进程在标准错误流记录逐行 JSON。可按 `event` 查询 `listener_starting`、`request_finished`、`reload_failed` 和 `app_stopped`，并用 `request_id` 关联业务调用。其他 Go 服务可通过 `log.NewJSON` 构造独立实例。[结构化日志](../design/structured-logging.md) · [可执行的 Go 示例](../../framework/log/example_test.go)
+
+### 通过 Docker Compose 运行
+
+从仓库根目录构建并等待容器就绪。HTTP、gRPC、SSE 和 go-micro v2 分别使用容器端口 `8080`、`9090`、`8081`、`9091`，按下方命令查询宿主回环地址。挂载配置定义各监听和应用关停预算。[Compose 配置](../../compose.yaml) · [容器启动配置](../../examples/assistant/deploy/assistant.json)
+
+```sh
+docker compose up --build --wait
+docker compose port assistant 8080
+docker compose logs assistant
+docker compose down
+```
+
+Go 端到端测试使用隔离的 Compose 项目，运行四个实际入口并验收启动错误和 `SIGTERM`。需要可用的 Linux 容器引擎。[Go 调用示例](../../test/e2e/assistant/compose_test.go) · [容器实测](../design/assistant-compose.md)
+
+```sh
+go test -tags=e2e -count=1 ./test/e2e/assistant
+```
 
 ### 同时启用 SSE 与旧协议
 

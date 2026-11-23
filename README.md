@@ -23,6 +23,7 @@ Kronos 是一个面向全球应用的、协议优先、云原生、AI 原生、�
 | [框架语言协商](docs/design/framework-localization.md) | 说明 HTTP、gRPC 和 SSE 的语言偏好与文案回退 |
 | [Blades 文本 Agent 适配](docs/design/blades-adapter.md) | 说明模型装配、文本增量、失败与取消 |
 | [应用装配与关停](docs/design/app-lifecycle.md) | 说明监听器所有权、探针与关停验收 |
+| [Assistant 容器交付](docs/design/assistant-compose.md) | 说明 Compose 配置、四入口、健康探针与进程退出 |
 | [启动配置文件](docs/design/config-file.md) | 说明启动参数、文件快照和候选进程重新读取行为 |
 | [应用优雅重载](docs/design/graceful-reload.md) | 说明进程接力、候选就绪和旧进程排空 |
 | [SSE 与 go-micro v2 监听](docs/design/additional-listeners.md) | 说明独立监听、流事件和旧协议互通范围 |
@@ -33,7 +34,7 @@ Kronos 是一个面向全球应用的、协议优先、云原生、AI 原生、�
 
 ## 交付状态
 
-Core 包提供 goroutine 执行、语言匹配、消息查找和 IANA 时区转换。Assistant 命令已验证 HTTP、gRPC、SSE、go-micro v2 四端口并行运行与进程关停，通过 Blades 执行确定性文本模型。完整参考应用将以 Docker Compose 交付并补齐部署端到端验收。
+Core 包提供 goroutine 执行、语言匹配、消息查找和 IANA 时区转换。Assistant 通过 Blades 执行确定性文本模型，使用 Docker Compose 挂载配置并运行 HTTP、gRPC、SSE 与 go-micro v2 四个监听。Linux 容器已验证探针、实际调用、启动失败和进程关停。[Compose 使用指南](docs/guide/README.md#通过-docker-compose-运行)
 
 框架内置 Skill 将随参考应用交付，指导使用者定义协议、生成代码、接线、测试和部署。经验证的参考应用可进一步提炼为可复制的服务模板。
 

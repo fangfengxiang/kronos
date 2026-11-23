@@ -26,3 +26,14 @@ jobs:
         run: go run ./platform/verify deps
       - name: Test independent modules with race detector
         run: go run ./platform/verify test
+
+  assistant-compose:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: false
+      - name: Test Assistant Compose deployment
+        run: go test -tags=e2e -count=1 -v ./test/e2e/assistant
