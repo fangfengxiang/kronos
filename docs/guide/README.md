@@ -136,6 +136,20 @@ go run ./examples/textbackend/cmd/textbackend -mongo-profile greeting -mongo-dat
 go run ./examples/textbackend/cmd/textbackend -oss-profile profiles/greeting.txt
 ```
 
+### 记录生成事件
+
+先创建 Kafka 主题，再分别启动 TextBackend 和事件消费命令。TextBackend 只有在 broker 确认后才返回成功。消费命令按行输出 JSON，写入成功后推进所选消费组的位点。组首次运行时读取最早可用记录。[Kafka 消息设计](../design/kafka-generation-events.md) · [事件 Protobuf](../../examples/textbackend/api/kronos/textbackend/v1/text_backend.proto)
+
+```sh
+go run ./examples/textbackend/cmd/textbackend -kafka-brokers 127.0.0.1:9092 -kafka-topic text-generation
+```
+
+```sh
+go run ./examples/textbackend/cmd/textbackend-events -kafka-brokers 127.0.0.1:9092 -kafka-topic text-generation -kafka-group analytics
+```
+
+两个命令均可用 `-kafka-tls` 启用 TLS，或用 `-kafka-ca-file` 指定 PEM 根证书。SASL PLAIN 凭据来自 `KRONOS_KAFKA_SASL_USERNAME` 和 `KRONOS_KAFKA_SASL_PASSWORD`，使用凭据部署时启用加密监听。[Apache Kafka 安全模型](https://kafka.apache.org/44/security/security-model/)
+
 ### 通过 Docker Compose 运行
 
 从仓库根目录构建并等待容器就绪。HTTP、gRPC、SSE 和 go-micro v2 分别使用容器端口 `8080`、`9090`、`8081`、`9091`，按下方命令查询宿主回环地址。挂载配置定义各监听和应用关停预算。[Compose 配置](../../compose.yaml) · [容器启动配置](../../examples/assistant/deploy/assistant.json)

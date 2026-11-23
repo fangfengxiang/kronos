@@ -14,6 +14,7 @@ const ErrorReason_ERROR_REASON_GENERATION_FAILED = v1.ErrorReason_ERROR_REASON_G
 
 type GenerateRequest = v1.GenerateRequest
 type GenerateResponse = v1.GenerateResponse
+type GenerationRecorded = v1.GenerationRecorded
 
 // TextBackendServiceUnaryService implements the unary methods declared in Protobuf.
 type TextBackendServiceUnaryService interface {

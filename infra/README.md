@@ -12,6 +12,8 @@
 
 [`infra/consul`](consul) 提供 gRPC 实例注册、注销、健康地址查询和可取消的订阅。[Consul 服务注册与订阅](../docs/design/consul-service-registration.md)
 
+[`infra/kafka`](kafka) 提供同步确认的 Kafka 发布、消费组和处理成功后的位点提交，支持 TLS 与 SASL PLAIN。[Kafka 消息与生成事件](../docs/design/kafka-generation-events.md)
+
 [`infra/microv2`](microv2) 是独立兼容模块，提供 go-micro v2 的入站一元 Protobuf 适配和出站 `proto-rpc` 直连。[兼容监听设计](../docs/design/additional-listeners.md) · [RPC 客户端协议](../docs/design/rpc-client-protocol.md)
 
 [`infra/mongodb`](mongodb) 提供独立连接、类型化文档读取、原子替换和删除。[MongoDB 类型化文档](../docs/design/mongodb-text-profiles.md)

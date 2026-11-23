@@ -158,6 +158,59 @@ func (x *GenerateResponse) GetText() string {
 	return ""
 }
 
+// GenerationRecorded is the Kafka event emitted after generating the response text.
+type GenerationRecorded struct {
+	state           protoimpl.MessageState `protogen:"open.v1"`
+	RequestId       string                 `protobuf:"bytes,1,opt,name=request_id,json=requestId,proto3" json:"request_id,omitempty"`
+	OutputUtf8Bytes uint64                 `protobuf:"varint,2,opt,name=output_utf8_bytes,json=outputUtf8Bytes,proto3" json:"output_utf8_bytes,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
+}
+
+func (x *GenerationRecorded) Reset() {
+	*x = GenerationRecorded{}
+	mi := &file_kronos_textbackend_v1_text_backend_proto_msgTypes[2]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GenerationRecorded) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GenerationRecorded) ProtoMessage() {}
+
+func (x *GenerationRecorded) ProtoReflect() protoreflect.Message {
+	mi := &file_kronos_textbackend_v1_text_backend_proto_msgTypes[2]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GenerationRecorded.ProtoReflect.Descriptor instead.
+func (*GenerationRecorded) Descriptor() ([]byte, []int) {
+	return file_kronos_textbackend_v1_text_backend_proto_rawDescGZIP(), []int{2}
+}
+
+func (x *GenerationRecorded) GetRequestId() string {
+	if x != nil {
+		return x.RequestId
+	}
+	return ""
+}
+
+func (x *GenerationRecorded) GetOutputUtf8Bytes() uint64 {
+	if x != nil {
+		return x.OutputUtf8Bytes
+	}
+	return 0
+}
+
 var File_kronos_textbackend_v1_text_backend_proto protoreflect.FileDescriptor
 
 const file_kronos_textbackend_v1_text_backend_proto_rawDesc = "" +
@@ -166,7 +219,11 @@ const file_kronos_textbackend_v1_text_backend_proto_rawDesc = "" +
 	"\x0fGenerateRequest\x12\x16\n" +
 	"\x06prompt\x18\x01 \x01(\tR\x06prompt\"&\n" +
 	"\x10GenerateResponse\x12\x12\n" +
-	"\x04text\x18\x01 \x01(\tR\x04text*p\n" +
+	"\x04text\x18\x01 \x01(\tR\x04text\"_\n" +
+	"\x12GenerationRecorded\x12\x1d\n" +
+	"\n" +
+	"request_id\x18\x01 \x01(\tR\trequestId\x12*\n" +
+	"\x11output_utf8_bytes\x18\x02 \x01(\x04R\x0foutputUtf8Bytes*p\n" +
 	"\vErrorReason\x12\x1c\n" +
 	"\x18ERROR_REASON_UNSPECIFIED\x10\x00\x12\x1f\n" +
 	"\x1bERROR_REASON_INVALID_PROMPT\x10\x01\x12\"\n" +
@@ -187,11 +244,12 @@ func file_kronos_textbackend_v1_text_backend_proto_rawDescGZIP() []byte {
 }
 
 var file_kronos_textbackend_v1_text_backend_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_kronos_textbackend_v1_text_backend_proto_msgTypes = make([]protoimpl.MessageInfo, 2)
+var file_kronos_textbackend_v1_text_backend_proto_msgTypes = make([]protoimpl.MessageInfo, 3)
 var file_kronos_textbackend_v1_text_backend_proto_goTypes = []any{
-	(ErrorReason)(0),         // 0: kronos.textbackend.v1.ErrorReason
-	(*GenerateRequest)(nil),  // 1: kronos.textbackend.v1.GenerateRequest
-	(*GenerateResponse)(nil), // 2: kronos.textbackend.v1.GenerateResponse
+	(ErrorReason)(0),           // 0: kronos.textbackend.v1.ErrorReason
+	(*GenerateRequest)(nil),    // 1: kronos.textbackend.v1.GenerateRequest
+	(*GenerateResponse)(nil),   // 2: kronos.textbackend.v1.GenerateResponse
+	(*GenerationRecorded)(nil), // 3: kronos.textbackend.v1.GenerationRecorded
 }
 var file_kronos_textbackend_v1_text_backend_proto_depIdxs = []int32{
 	1, // 0: kronos.textbackend.v1.TextBackendService.Generate:input_type -> kronos.textbackend.v1.GenerateRequest
@@ -214,7 +272,7 @@ func file_kronos_textbackend_v1_text_backend_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_kronos_textbackend_v1_text_backend_proto_rawDesc), len(file_kronos_textbackend_v1_text_backend_proto_rawDesc)),
 			NumEnums:      1,
-			NumMessages:   2,
+			NumMessages:   3,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

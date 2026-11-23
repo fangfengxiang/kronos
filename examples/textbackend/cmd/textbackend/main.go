@@ -13,11 +13,13 @@ import (
 	"time"
 
 	"github.com/fangfengxiang/kronos/examples/textbackend"
+	"github.com/fangfengxiang/kronos/examples/textbackend/internal/eventconfig"
 	"github.com/fangfengxiang/kronos/framework/app"
 	"github.com/fangfengxiang/kronos/framework/log"
 	"github.com/fangfengxiang/kronos/framework/rpc"
 	"github.com/fangfengxiang/kronos/infra/aliyunoss"
 	"github.com/fangfengxiang/kronos/infra/consul"
+	"github.com/fangfengxiang/kronos/infra/kafka"
 	"github.com/fangfengxiang/kronos/infra/mongodb"
 	"github.com/fangfengxiang/kronos/infra/redis"
 )
@@ -47,6 +49,7 @@ func run(ctx context.Context, arguments []string) (runError error) {
 	cacheTTL := flags.Duration("profile-cache-ttl", 0, "Redis TTL for MySQL profiles (zero disables the cache)")
 	cacheNamespace := flags.String("profile-cache-namespace", "default", "namespace for MySQL profile keys in Redis")
 	cacheCluster := flags.Bool("profile-cache-cluster", false, "use Redis Cluster for the profile cache")
+	kafkaFlags := eventconfig.RegisterKafkaFlags(flags)
 	if err := flags.Parse(arguments); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
 			return nil
@@ -119,6 +122,20 @@ func run(ctx context.Context, arguments []string) (runError error) {
 			origin: service.prefixSource, cache: cache, key: profileCacheKey(*cacheNamespace, *mysqlProfileName), ttl: *cacheTTL,
 		}
 	}
+	eventConfig, err := kafkaFlags.Config()
+	if err != nil {
+		return err
+	}
+	if len(eventConfig.Brokers) != 0 {
+		startupContext, cancel := context.WithTimeout(ctx, 3*time.Second)
+		publisher, err := kafka.OpenPublisher(startupContext, eventConfig)
+		cancel()
+		if err != nil {
+			return err
+		}
+		defer publisher.Close()
+		service.generationRecorder = kafkaGenerationRecorder{publisher: publisher}
+	}
 	application, err := app.New(app.Config{ShutdownTimeout: 5 * time.Second}, app.Binding{
 		Name:    "gRPC",
 		Address: *grpcAddress,
@@ -144,8 +161,13 @@ type prefixSource interface {
 	Prefix(context.Context) (string, error)
 }
 
+type generationRecorder interface {
+	RecordGeneration(context.Context, uint64) error
+}
+
 type textService struct {
-	prefixSource prefixSource
+	prefixSource       prefixSource
+	generationRecorder generationRecorder
 }
 
 func (service textService) Generate(ctx context.Context, request *textbackend.GenerateRequest) (*textbackend.GenerateResponse, error) {
@@ -168,5 +190,11 @@ func (service textService) Generate(ctx context.Context, request *textbackend.Ge
 			return nil, err
 		}
 	}
-	return &textbackend.GenerateResponse{Text: prefix + prompt}, nil
+	output := prefix + prompt
+	if service.generationRecorder != nil {
+		if err := service.generationRecorder.RecordGeneration(ctx, uint64(len(output))); err != nil {
+			return nil, err
+		}
+	}
+	return &textbackend.GenerateResponse{Text: output}, nil
 }

@@ -13,6 +13,7 @@ require (
 	github.com/fangfengxiang/kronos/infra/blades v0.0.0
 	github.com/fangfengxiang/kronos/infra/configfile v0.0.0
 	github.com/fangfengxiang/kronos/infra/consul v0.0.0
+	github.com/fangfengxiang/kronos/infra/kafka v0.0.0
 	github.com/fangfengxiang/kronos/infra/microv2 v0.0.0
 	github.com/fangfengxiang/kronos/infra/mongodb v0.0.0
 	github.com/fangfengxiang/kronos/infra/mysql v0.0.0
@@ -40,6 +41,7 @@ replace (
 	github.com/fangfengxiang/kronos/infra/blades => ./infra/blades
 	github.com/fangfengxiang/kronos/infra/configfile => ./infra/configfile
 	github.com/fangfengxiang/kronos/infra/consul => ./infra/consul
+	github.com/fangfengxiang/kronos/infra/kafka => ./infra/kafka
 	github.com/fangfengxiang/kronos/infra/microv2 => ./infra/microv2
 	github.com/fangfengxiang/kronos/infra/mongodb => ./infra/mongodb
 	github.com/fangfengxiang/kronos/infra/mysql => ./infra/mysql
@@ -84,11 +86,14 @@ require (
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/mitchellh/go-homedir v1.1.0 // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
+	github.com/pierrec/lz4/v4 v4.1.26 // indirect
 	github.com/prometheus/client_golang v1.23.2 // indirect
 	github.com/prometheus/client_model v0.6.2 // indirect
 	github.com/prometheus/common v0.66.1 // indirect
 	github.com/prometheus/procfs v0.16.1 // indirect
 	github.com/redis/go-redis/v9 v9.22.0 // indirect
+	github.com/twmb/franz-go v1.21.7 // indirect
+	github.com/twmb/franz-go/pkg/kmsg v1.13.1 // indirect
 	github.com/xdg-go/pbkdf2 v1.0.0 // indirect
 	github.com/xdg-go/scram v1.2.0 // indirect
 	github.com/xdg-go/stringprep v1.0.4 // indirect

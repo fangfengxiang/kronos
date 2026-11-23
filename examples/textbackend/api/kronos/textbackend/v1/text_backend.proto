@@ -16,6 +16,12 @@ message GenerateResponse {
   string text = 1;
 }
 
+// GenerationRecorded is the Kafka event emitted after generating the response text.
+message GenerationRecorded {
+  string request_id = 1;
+  uint64 output_utf8_bytes = 2;
+}
+
 enum ErrorReason {
   ERROR_REASON_UNSPECIFIED = 0;
   ERROR_REASON_INVALID_PROMPT = 1;
