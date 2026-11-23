@@ -43,6 +43,17 @@ legacyClient, err := assistant.NewRPCClient(ctx, "127.0.0.1:9091", time.Second,
     rpc.WithProtocol(rpc.ProtocolMicroV2))
 ```
 
+### 选择错误文案语言
+
+HTTP 和 SSE 使用 `Accept-Language`，标准 gRPC 使用 `accept-language` 元数据。Kronos 的 HTTP 和标准 gRPC 一元客户端通过 `framework/localization` 为单次调用传入偏好。
+
+```go
+callCtx := localization.WithAcceptLanguage(ctx, "zh-CN, en;q=0.5")
+response, err := client.Run(callCtx, request)
+```
+
+Assistant 的空提示词支持简体中文和英文，默认英文。调用方继续按 `ERROR_REASON_INVALID_PROMPT` 处理失败。[框架语言协商](../design/framework-localization.md)
+
 ## 运行 Assistant
 
 ```sh

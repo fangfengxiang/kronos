@@ -6,6 +6,7 @@ use (
 	./core/runtime
 	./core/timezone
 	./framework/app
+	./framework/localization
 	./framework/rpc
 	./infra/microv2
 )

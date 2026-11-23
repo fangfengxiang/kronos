@@ -52,7 +52,7 @@ func (service service) StreamRun(request *wire.StreamRunRequest, stream wire.Ass
 		}
 		return stream.Send(event)
 	}
-	if err := service.stream(ctx, request, func(delta string) error {
+	if err := service.stream(withIncomingLanguage(ctx), request, func(delta string) error {
 		return send(&wire.StreamRunResponse{Event: &wire.StreamRunResponse_TextDelta{TextDelta: delta}})
 	}); err != nil {
 		if writeDeadline != nil {
@@ -65,7 +65,7 @@ func (service service) StreamRun(request *wire.StreamRunRequest, stream wire.Ass
 }
 
 func (service service) Run(ctx context.Context, request *wire.RunRequest) (*wire.RunResponse, error) {
-	response, err := service.run(ctx, request)
+	response, err := service.run(withIncomingLanguage(ctx), request)
 	return response, toWireError(err)
 }
 

@@ -18,9 +18,13 @@ import (
 
 	"github.com/fangfengxiang/kronos/examples/assistant"
 	wire "github.com/fangfengxiang/kronos/examples/assistant/internal/wire/kronos/assistant/v1"
+	"github.com/fangfengxiang/kronos/framework/localization"
 	"github.com/fangfengxiang/kronos/framework/rpc"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/metadata"
+	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -117,6 +121,8 @@ func assertAssistantListeners(t *testing.T, ctx context.Context, httpAddress, gr
 	defer grpcClient.Close()
 	assertEcho(t, ctx, "HTTP", httpClient)
 	assertEcho(t, ctx, "gRPC", grpcClient)
+	assertLocalizedPromptErrors(t, ctx, "HTTP", httpClient)
+	assertLocalizedPromptErrors(t, ctx, "gRPC", grpcClient)
 	legacyClient, err := assistant.NewRPCClient(ctx, microAddress, time.Second, rpc.WithProtocol(rpc.ProtocolMicroV2))
 	if err != nil {
 		t.Fatal(err)
@@ -149,7 +155,8 @@ func assertStandardGRPCStream(t *testing.T, ctx context.Context, address string)
 		t.Fatal(err)
 	}
 	defer connection.Close()
-	stream, err := wire.NewAssistantClient(connection).StreamRun(ctx, &wire.StreamRunRequest{Prompt: "你好"})
+	client := wire.NewAssistantClient(connection)
+	stream, err := client.StreamRun(ctx, &wire.StreamRunRequest{Prompt: "你好"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -165,6 +172,14 @@ func assertStandardGRPCStream(t *testing.T, ctx context.Context, address string)
 	}
 	if _, err := stream.Recv(); err != io.EOF {
 		t.Fatalf("gRPC stream ended with %v", err)
+	}
+	localizedCtx := metadata.AppendToOutgoingContext(ctx, localization.AcceptLanguageHeader, "zh-CN")
+	stream, err = client.StreamRun(localizedCtx, &wire.StreamRunRequest{})
+	if err == nil {
+		_, err = stream.Recv()
+	}
+	if failure := status.Convert(err); failure.Code() != codes.InvalidArgument || failure.Message() != "提示词不能为空" {
+		t.Fatalf("localized gRPC stream failure = %v", failure)
 	}
 }
 
@@ -198,6 +213,25 @@ func assertSSEListener(t *testing.T, ctx context.Context, sseAddress, httpAddres
 			!bytes.Contains(body, []byte(`"textDelta":"你"`)) || !bytes.Contains(body, []byte(`"textDelta":"好"`))) {
 			t.Fatalf("unexpected SSE response: %v\n%s", response.Header, body)
 		}
+	}
+	request, err := http.NewRequestWithContext(ctx, http.MethodPost,
+		"http://"+sseAddress+"/v1/assistant:streamRun", strings.NewReader(`{}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	request.Header.Set("Content-Type", "application/json")
+	request.Header.Set("Accept", "text/event-stream")
+	request.Header.Add(localization.AcceptLanguageHeader, "en;q=0.4")
+	request.Header.Add(localization.AcceptLanguageHeader, "zh-CN;q=0.9")
+	response, err := http.DefaultClient.Do(request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer response.Body.Close()
+	body, err := io.ReadAll(response.Body)
+	if err != nil || response.StatusCode != http.StatusBadRequest || !bytes.Contains(body, []byte("提示词不能为空")) ||
+		!bytes.Contains(body, []byte(assistant.ErrorReasonInvalidPrompt.String())) {
+		t.Fatalf("localized SSE response = %d %s, %v", response.StatusCode, body, err)
 	}
 }
 
@@ -265,7 +299,25 @@ func assertEcho(t *testing.T, ctx context.Context, transport string, client *ass
 	}
 	_, err = client.Run(ctx, &assistant.RunRequest{Prompt: " \t"})
 	var failure *rpc.Error
-	if !errors.As(err, &failure) || failure.Code != rpc.InvalidArgument || failure.Reason != assistant.ErrorReasonInvalidPrompt.String() {
+	if !errors.As(err, &failure) || failure.Code != rpc.InvalidArgument || failure.Reason != assistant.ErrorReasonInvalidPrompt.String() || failure.Message != "prompt must not be blank" {
 		t.Fatalf("%s blank request returned %v", transport, err)
+	}
+}
+
+func assertLocalizedPromptErrors(t *testing.T, ctx context.Context, transport string, client *assistant.Client) {
+	t.Helper()
+	for _, test := range []struct {
+		preferences []string
+		message     string
+	}{
+		{[]string{"fr-FR", "en;q=0.4, zh-CN;q=0.9"}, "提示词不能为空"},
+		{[]string{"fr-FR", "zh-CN;q=0"}, "prompt must not be blank"},
+	} {
+		requestCtx := localization.WithAcceptLanguage(ctx, test.preferences...)
+		_, err := client.Run(requestCtx, &assistant.RunRequest{})
+		var failure *rpc.Error
+		if !errors.As(err, &failure) || failure.Code != rpc.InvalidArgument || failure.Reason != assistant.ErrorReasonInvalidPrompt.String() || failure.Message != test.message {
+			t.Fatalf("%s preferences %v returned %v", transport, test.preferences, err)
+		}
 	}
 }

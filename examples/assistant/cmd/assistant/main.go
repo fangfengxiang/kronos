@@ -12,8 +12,10 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/fangfengxiang/kronos/core/locale"
 	"github.com/fangfengxiang/kronos/examples/assistant"
 	"github.com/fangfengxiang/kronos/framework/app"
+	"github.com/fangfengxiang/kronos/framework/localization"
 	"github.com/fangfengxiang/kronos/framework/rpc"
 )
 
@@ -48,7 +50,10 @@ func run(ctx context.Context, args []string) error {
 
 	// Run builds the bindings after application has been assigned.
 	var application *app.App
-	echo := echoService{}
+	echo, err := newEchoService()
+	if err != nil {
+		return err
+	}
 	service := admittingService{
 		ready:  func() bool { return application.Ready() },
 		next:   echo,
@@ -80,7 +85,7 @@ func run(ctx context.Context, args []string) error {
 			return assistant.NewMicroV2Server(listener, service), nil
 		}})
 	}
-	application, err := app.New(app.Config{ShutdownTimeout: *shutdownTimeout}, bindings...)
+	application, err = app.New(app.Config{ShutdownTimeout: *shutdownTimeout}, bindings...)
 	if err != nil {
 		return err
 	}
@@ -127,15 +132,37 @@ func (service admittingService) checkReadiness() error {
 	return nil
 }
 
-type echoService struct{}
+type echoService struct {
+	languages *locale.Matcher
+	messages  *locale.Catalog
+}
 
-func (echoService) Run(_ context.Context, request *assistant.RunRequest) (*assistant.RunResponse, error) {
+func newEchoService() (echoService, error) {
+	languages, err := locale.NewMatcher("en", "en", "zh-Hans")
+	if err != nil {
+		return echoService{}, err
+	}
+	invalidPrompt := assistant.ErrorReasonInvalidPrompt.String()
+	messages, err := locale.NewCatalog(languages, map[string]map[string]string{
+		"en":      {invalidPrompt: "prompt must not be blank"},
+		"zh-Hans": {invalidPrompt: "提示词不能为空"},
+	})
+	if err != nil {
+		return echoService{}, err
+	}
+	return echoService{languages: languages, messages: messages}, nil
+}
+
+func (service echoService) Run(ctx context.Context, request *assistant.RunRequest) (*assistant.RunResponse, error) {
 	prompt := request.GetPrompt()
 	if strings.TrimSpace(prompt) == "" {
+		reason := assistant.ErrorReasonInvalidPrompt.String()
+		tag, _ := localization.Negotiate(ctx, service.languages)
+		message, _ := service.messages.Lookup(tag, reason)
 		return nil, &rpc.Error{
 			Code:    rpc.InvalidArgument,
-			Reason:  assistant.ErrorReasonInvalidPrompt.String(),
-			Message: "prompt must not be blank",
+			Reason:  reason,
+			Message: message.Text,
 		}
 	}
 	return &assistant.RunResponse{Text: prompt}, nil

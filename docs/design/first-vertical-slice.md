@@ -26,7 +26,7 @@
 
 ## 语言与反馈
 
-首版验收覆盖中文和英文。HTTP 从 `Accept-Language` 获取偏好，gRPC 暂拟使用 `accept-language` 元数据。支持标签、来源优先级和默认语言由本地化 ADR 确认。测试协商不到受支持语言时采用服务默认语言，并验证已选语言缺少译文时的资源回退。
+首版验收覆盖简体中文和英文。HTTP 与 SSE 从 `Accept-Language` 获取偏好，gRPC 使用 `accept-language` 元数据。Assistant 的空提示词文案已接入 `en` 和 `zh-Hans`，默认英文。消息目录为缺少的译文提供默认资源回退。[框架语言协商](framework-localization.md)
 
 对同一次失败分别请求两种语言。机器可判断的错误码保持一致，人类可读的系统消息随所选语言变化。Agent 输出语言由请求意图和模型任务确定。分别验证系统文案与 Agent 输出语言的选择，并确认两种语言的事件结构、顺序和终态一致。 [本地化决定](../adr/0003-localization.md)
 
