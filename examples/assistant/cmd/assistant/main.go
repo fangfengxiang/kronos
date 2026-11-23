@@ -6,6 +6,7 @@ import (
 	"flag"
 	"log/slog"
 	"net"
+	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
@@ -16,6 +17,7 @@ import (
 	"github.com/fangfengxiang/kronos/framework/log"
 	"github.com/fangfengxiang/kronos/framework/rpc"
 	"github.com/fangfengxiang/kronos/infra/blades"
+	"github.com/fangfengxiang/kronos/infra/prometheus"
 )
 
 func main() {
@@ -37,6 +39,7 @@ func run(ctx context.Context, args []string, logger *slog.Logger) error {
 	grpcAddress := flags.String("grpc", "127.0.0.1:9090", "gRPC listen address")
 	sseAddress := flags.String("sse", "", "SSE listen address (empty disables SSE)")
 	microV2Address := flags.String("micro-v2", "", "go-micro v2 listen address (empty disables compatibility)")
+	metricsEnabled := flags.Bool("metrics", false, "expose application metrics on the HTTP listener")
 	shutdownTimeout := flags.Duration("shutdown-timeout", 5*time.Second, "time allowed for graceful shutdown")
 	reloadPIDFile := flags.String(reloadPIDFileFlag, "", "PID file for SIGHUP reload (empty disables reload)")
 	reloadStartupTimeout := flags.Duration(reloadTimeoutFlag, 30*time.Second, "time allowed for a replacement to become ready")
@@ -71,12 +74,23 @@ func run(ctx context.Context, args []string, logger *slog.Logger) error {
 		stream: agent,
 		logger: logger,
 	}
+	var metricsHandler http.Handler
+	if *metricsEnabled {
+		metrics, err := prometheus.NewRequestMetrics("Run", "StreamRun")
+		if err != nil {
+			return err
+		}
+		service.recordMetrics = metrics.Record
+		metricsHandler = metrics
+	}
 	bindings := []app.Binding{
 		{
 			Name:    "HTTP",
 			Address: *httpAddress,
 			Build: func(listener net.Listener) (app.Server, error) {
-				return assistant.NewHTTPServerWithProbes(listener, service, application.Probes()), nil
+				return assistant.NewHTTPServerWithOptions(listener, service, assistant.HTTPOptions{
+					Probes: application.Probes(), Metrics: metricsHandler,
+				}), nil
 			},
 		},
 		{
@@ -125,10 +139,11 @@ func run(ctx context.Context, args []string, logger *slog.Logger) error {
 }
 
 type admittingService struct {
-	ready  func() bool
-	next   assistant.Service
-	stream assistant.StreamService
-	logger *slog.Logger
+	ready         func() bool
+	next          assistant.Service
+	stream        assistant.StreamService
+	logger        *slog.Logger
+	recordMetrics func(operation string, failed bool, duration time.Duration)
 }
 
 func (service admittingService) Run(ctx context.Context, request *assistant.RunRequest) (*assistant.RunResponse, error) {

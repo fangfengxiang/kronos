@@ -77,6 +77,8 @@ curl -fsS http://127.0.0.1:8080/v1/assistant:run -H 'Content-Type: application/j
 
 进程在标准错误流记录逐行 JSON。可按 `event` 查询 `listener_starting`、`request_finished`、`reload_failed` 和 `app_stopped`，并用 `request_id` 关联业务调用。其他 Go 服务可通过 `log.NewJSON` 构造独立实例。[结构化日志](../design/structured-logging.md) · [可执行的 Go 示例](../../framework/log/example_test.go)
 
+使用 `-metrics` 或在启动 JSON 设置 `"metrics":"true"`，即可在主 HTTP 监听的 `/metrics` 抓取请求量和延迟。Compose 示例配置已启用抓取。[指标使用设计](../design/request-metrics.md) · [可执行的 Go 示例](../../infra/prometheus/example_test.go)
+
 ### 通过 Docker Compose 运行
 
 从仓库根目录构建并等待容器就绪。HTTP、gRPC、SSE 和 go-micro v2 分别使用容器端口 `8080`、`9090`、`8081`、`9091`，按下方命令查询宿主回环地址。挂载配置定义各监听和应用关停预算。[Compose 配置](../../compose.yaml) · [容器启动配置](../../examples/assistant/deploy/assistant.json)

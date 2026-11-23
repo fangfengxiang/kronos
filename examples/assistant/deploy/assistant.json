@@ -3,5 +3,6 @@
   "grpc": "0.0.0.0:9090",
   "sse": "0.0.0.0:8081",
   "micro-v2": "0.0.0.0:9091",
+  "metrics": "true",
   "shutdown-timeout": "5s"
 }

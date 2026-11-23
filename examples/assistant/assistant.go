@@ -28,12 +28,23 @@ type StreamService interface {
 
 // NewHTTPServer binds service to a caller-provided HTTP listener.
 func NewHTTPServer(listener net.Listener, service Service) rpc.Server {
-	return binding.NewHTTPServer(listener, service.Run, nil)
+	return NewHTTPServerWithOptions(listener, service, HTTPOptions{})
 }
 
 // NewHTTPServerWithProbes also mounts probes at /livez and /readyz.
 func NewHTTPServerWithProbes(listener net.Listener, service Service, probes http.Handler) rpc.Server {
-	return binding.NewHTTPServer(listener, service.Run, probes)
+	return NewHTTPServerWithOptions(listener, service, HTTPOptions{Probes: probes})
+}
+
+// HTTPOptions configures operational handlers on the main HTTP listener.
+type HTTPOptions struct {
+	Probes  http.Handler
+	Metrics http.Handler
+}
+
+// NewHTTPServerWithOptions binds the service and the configured operational routes.
+func NewHTTPServerWithOptions(listener net.Listener, service Service, options HTTPOptions) rpc.Server {
+	return binding.NewHTTPServer(listener, service.Run, options.Probes, options.Metrics)
 }
 
 // NewGRPCServer binds service to a caller-provided plaintext gRPC listener.

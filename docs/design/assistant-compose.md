@@ -5,6 +5,7 @@
 开发者从仓库根目录使用 Docker Compose 启动确定性模型的 Assistant。Linux 镜像直接执行 Assistant 进程，Compose 挂载只读 JSON 配置。HTTP、gRPC、SSE 和 go-micro v2 分别监听容器的 `8080`、`9090`、`8081`、`9091`，宿主机仅回环地址按需分配端口。客户端用 `docker compose port assistant <容器端口>` 查询。
 
 - 应用进程以非 root 用户运行。Compose 使用 HTTP `/readyz` 判定就绪，`/livez` 供存活检查。进程标准错误流记录结构化启动、请求和退出事件。
+- Compose 附带配置启用 `/metrics`。指标经同一个宿主回环地址抓取。[请求指标](request-metrics.md)
 - `docker compose stop` 向主进程发送 `SIGTERM`。容器留 10 秒给停止流程，配置中的应用关停预算为 5 秒。实际进程排空规则见应用生命周期与流测试。[应用装配与关停](app-lifecycle.md)
 - 配置读取失败时进程以非零退出码结束。部署方可以从日志定位配置路径和错误。镜像和确定性模型运行无需外部模型凭据。
 

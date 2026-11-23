@@ -48,6 +48,7 @@ func TestAssistantProcessShutsDownOnSIGTERM(t *testing.T) {
 		"grpc":             grpcAddress,
 		"sse":              sseAddress,
 		"micro-v2":         microAddress,
+		"metrics":          "true",
 		"shutdown-timeout": "2s",
 	})
 	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
@@ -79,6 +80,7 @@ func TestAssistantProcessShutsDownOnSIGTERM(t *testing.T) {
 	}
 	const callerID = "assistant-process_01"
 	assertAssistantListeners(t, request.WithID(ctx, callerID), httpAddress, grpcAddress, sseAddress, microAddress)
+	assertAggregatedMetrics(t, ctx, httpEndpoint)
 
 	if err := command.Process.Signal(syscall.SIGTERM); err != nil {
 		t.Fatal(err)

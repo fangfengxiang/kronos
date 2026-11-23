@@ -12,6 +12,7 @@ require (
 	github.com/fangfengxiang/kronos/infra/blades v0.0.0
 	github.com/fangfengxiang/kronos/infra/configfile v0.0.0
 	github.com/fangfengxiang/kronos/infra/microv2 v0.0.0
+	github.com/fangfengxiang/kronos/infra/prometheus v0.0.0
 	github.com/go-kratos/kratos/v3 v3.0.0
 	google.golang.org/genproto/googleapis/api v0.0.0-20260511170946-3700d4141b60
 	google.golang.org/grpc v1.81.1
@@ -28,9 +29,12 @@ replace (
 	github.com/fangfengxiang/kronos/infra/blades => ./infra/blades
 	github.com/fangfengxiang/kronos/infra/configfile => ./infra/configfile
 	github.com/fangfengxiang/kronos/infra/microv2 => ./infra/microv2
+	github.com/fangfengxiang/kronos/infra/prometheus => ./infra/prometheus
 )
 
 require (
+	github.com/beorn7/perks v1.0.1 // indirect
+	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/cloudflare/tableflip v1.2.3 // indirect
 	github.com/go-kratos/blades v0.6.0 // indirect
 	github.com/go-playground/form/v4 v4.3.0 // indirect
@@ -38,7 +42,12 @@ require (
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/gorilla/mux v1.8.1 // indirect
 	github.com/gorilla/websocket v1.5.3 // indirect
-	github.com/kr/text v0.2.0 // indirect
+	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
+	github.com/prometheus/client_golang v1.23.2 // indirect
+	github.com/prometheus/client_model v0.6.2 // indirect
+	github.com/prometheus/common v0.66.1 // indirect
+	github.com/prometheus/procfs v0.16.1 // indirect
+	go.yaml.in/yaml/v2 v2.4.2 // indirect
 	golang.org/x/net v0.54.0 // indirect
 	golang.org/x/sys v0.44.0 // indirect
 	golang.org/x/text v0.40.0 // indirect

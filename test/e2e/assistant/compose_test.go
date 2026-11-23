@@ -50,7 +50,7 @@ func TestAssistantCompose(t *testing.T) {
 	grpcAddress := project.address(t, ctx, "9090")
 	sseAddress := project.address(t, ctx, "8081")
 	legacyAddress := project.address(t, ctx, "9091")
-	for _, path := range []string{"/livez", "/readyz"} {
+	for _, path := range []string{"/livez", "/readyz", "/metrics"} {
 		assertProbe(t, ctx, "http://"+httpAddress+path)
 	}
 	httpClient, err := assistant.NewHTTPClient(ctx, "http://"+httpAddress, time.Second)

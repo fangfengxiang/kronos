@@ -22,6 +22,7 @@ Kronos 是一个面向全球应用的、协议优先、云原生、AI 原生、�
 | [标准 gRPC 流客户端](docs/design/rpc-stream-client.md) | 说明公开流事件、终态确认和取消传播 |
 | [请求元数据](docs/design/request-metadata.md) | 说明请求标识、上下文传播和兼容监听行为 |
 | [结构化日志](docs/design/structured-logging.md) | 说明请求关联、日志安全字段和真实进程验收 |
+| [请求指标](docs/design/request-metrics.md) | 说明 Prometheus 抓取、跨传输统计和标签范围 |
 | [框架语言协商](docs/design/framework-localization.md) | 说明 HTTP、gRPC 和 SSE 的语言偏好与文案回退 |
 | [Blades 文本 Agent 适配](docs/design/blades-adapter.md) | 说明模型装配、文本增量、失败与取消 |
 | [应用装配与关停](docs/design/app-lifecycle.md) | 说明监听器所有权、探针与关停验收 |

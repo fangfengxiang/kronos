@@ -5,6 +5,7 @@ package main
 import (
 	"context"
 	"net"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -59,6 +60,7 @@ func TestAssistantReloadKeepsAllListeners(t *testing.T) {
 		}
 	})
 	waitForReady(t, ctx, httpEndpoint, processDone)
+	scrapeMetrics(t, ctx, httpEndpoint, http.StatusNotFound)
 	if pid := readPID(pidFile); pid != initialPID {
 		t.Fatalf("initial PID file = %d, want %d", pid, initialPID)
 	}

@@ -9,3 +9,5 @@
 [`infra/configfile`](configfile) 是独立配置源模块，提供类型化的本地 JSON 快照读取，由消费入口定义配置字段和覆盖规则。[启动配置文件](../docs/design/config-file.md)
 
 [`infra/microv2`](microv2) 是独立兼容模块，提供 go-micro v2 的入站一元 Protobuf 适配和出站 `proto-rpc` 直连。[兼容监听设计](../docs/design/additional-listeners.md) · [RPC 客户端协议](../docs/design/rpc-client-protocol.md)
+
+[`infra/prometheus`](prometheus) 提供独立请求计数、延迟直方图和标准 HTTP 抓取处理器。[请求指标](../docs/design/request-metrics.md)

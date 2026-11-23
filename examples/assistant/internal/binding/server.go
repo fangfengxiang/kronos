@@ -81,12 +81,15 @@ func (server server) Stop(ctx context.Context) error {
 	return server.transport.Stop(ctx)
 }
 
-func NewHTTPServer(listener net.Listener, run runHandler, probes http.Handler) rpc.Server {
+func NewHTTPServer(listener net.Listener, run runHandler, probes, metrics http.Handler) rpc.Server {
 	nativeServer := kratoshttp.NewServer(kratoshttp.Listener(listener), kratoshttp.ErrorEncoder(encodeHTTPError), kratoshttp.Filter(onlyStreamRoute(false)))
 	wire.RegisterAssistantHTTPServer(nativeServer, service{run: run})
 	if probes != nil {
 		nativeServer.Handle("/livez", probes)
 		nativeServer.Handle("/readyz", probes)
+	}
+	if metrics != nil {
+		nativeServer.Handle("/metrics", metrics)
 	}
 	return server{transport: nativeServer}
 }

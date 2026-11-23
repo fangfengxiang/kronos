@@ -10,6 +10,10 @@ import (
 )
 
 func (service admittingService) recordRequestResult(ctx context.Context, operation string, startedAt time.Time, err error) {
+	duration := time.Since(startedAt)
+	if service.recordMetrics != nil {
+		service.recordMetrics(operation, err != nil, duration)
+	}
 	level := slog.LevelInfo
 	status, reason := "OK", ""
 	if err != nil {
@@ -30,7 +34,7 @@ func (service admittingService) recordRequestResult(ctx context.Context, operati
 		slog.String("event", "request_finished"),
 		slog.String("operation", operation),
 		slog.String("status", status),
-		slog.Int64("duration_us", time.Since(startedAt).Microseconds()),
+		slog.Int64("duration_us", duration.Microseconds()),
 	}
 	if reason != "" {
 		attributes = append(attributes, slog.String("reason", reason))
