@@ -112,6 +112,12 @@ Assistant 用同一个 Consul agent 按名称发现已注册并通过健康检�
 go run ./examples/assistant/cmd/assistant -text-backend-consul http://127.0.0.1:8500
 ```
 
+TextBackend 可从 MySQL 读取文本前缀。先在部署库应用表定义并写入具名配置，通过环境变量 `KRONOS_TEXTBACKEND_MYSQL_DSN` 设置连接信息。启用后，后端按名称读取当前值。[SQL 表定义](../../examples/textbackend/schema/mysql.sql) · [MySQL 用法与实测](../design/mysql-text-profiles.md)
+
+```sh
+go run ./examples/textbackend/cmd/textbackend -mysql-profile greeting
+```
+
 ### 通过 Docker Compose 运行
 
 从仓库根目录构建并等待容器就绪。HTTP、gRPC、SSE 和 go-micro v2 分别使用容器端口 `8080`、`9090`、`8081`、`9091`，按下方命令查询宿主回环地址。挂载配置定义各监听和应用关停预算。[Compose 配置](../../compose.yaml) · [容器启动配置](../../examples/assistant/deploy/assistant.json)

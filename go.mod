@@ -13,6 +13,7 @@ require (
 	github.com/fangfengxiang/kronos/infra/configfile v0.0.0
 	github.com/fangfengxiang/kronos/infra/consul v0.0.0
 	github.com/fangfengxiang/kronos/infra/microv2 v0.0.0
+	github.com/fangfengxiang/kronos/infra/mysql v0.0.0
 	github.com/fangfengxiang/kronos/infra/oteltrace v0.0.0
 	github.com/fangfengxiang/kronos/infra/prometheus v0.0.0
 	github.com/fangfengxiang/kronos/infra/runtimeprofile v0.0.0
@@ -36,12 +37,14 @@ replace (
 	github.com/fangfengxiang/kronos/infra/configfile => ./infra/configfile
 	github.com/fangfengxiang/kronos/infra/consul => ./infra/consul
 	github.com/fangfengxiang/kronos/infra/microv2 => ./infra/microv2
+	github.com/fangfengxiang/kronos/infra/mysql => ./infra/mysql
 	github.com/fangfengxiang/kronos/infra/oteltrace => ./infra/oteltrace
 	github.com/fangfengxiang/kronos/infra/prometheus => ./infra/prometheus
 	github.com/fangfengxiang/kronos/infra/runtimeprofile => ./infra/runtimeprofile
 )
 
 require (
+	filippo.io/edwards25519 v1.2.0 // indirect
 	github.com/armon/go-metrics v0.4.1 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cenkalti/backoff/v5 v5.0.3 // indirect
@@ -53,6 +56,7 @@ require (
 	github.com/go-logr/logr v1.4.3 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/go-playground/form/v4 v4.3.0 // indirect
+	github.com/go-sql-driver/mysql v1.10.2 // indirect
 	github.com/go-viper/mapstructure/v2 v2.4.0 // indirect
 	github.com/google/jsonschema-go v0.3.0 // indirect
 	github.com/google/uuid v1.6.0 // indirect
