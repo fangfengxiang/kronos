@@ -114,7 +114,9 @@ func (client *Client) Invoke(ctx context.Context, method protoreflect.MethodDesc
 		MicroName:   serviceName,
 		MicroMethod: string(service.Name()) + "." + string(method.Name()),
 	}
+	observation := rpcObservation{service: serviceName, operation: operation.GRPCMethod, protocol: client.config.protocol}
 	started := time.Now()
+	transportAttempts := 0
 	defer func() {
 		if callError != nil && ctx.Err() != nil {
 			switch {
@@ -126,13 +128,7 @@ func (client *Client) Invoke(ctx context.Context, method protoreflect.MethodDesc
 				callError = ctx.Err()
 			}
 		}
-		level := slog.LevelDebug
-		if callError != nil {
-			level = slog.LevelWarn
-		}
-		slog.Log(ctx, level, "RPC client request completed", "event", "rpc_client_finished", "service", serviceName,
-			"operation", operation.GRPCMethod, "protocol", client.config.protocol,
-			"failed", callError != nil, "duration_us", time.Since(started).Microseconds())
+		observation.finished(ctx, "rpc_client_finished", started, callError, slog.Int("attempts", transportAttempts))
 	}()
 	if err := client.resolve(ctx, serviceName); err != nil {
 		return err
@@ -156,6 +152,7 @@ func (client *Client) Invoke(ctx context.Context, method protoreflect.MethodDesc
 			}
 			return err
 		}
+		transportAttempts++
 		unavailable, err := target.connection.Invoke(ctx, operation, request, response)
 		client.release(target, unavailable)
 		if err == nil || !unavailable {

@@ -84,23 +84,19 @@ func (application *App) Run(ctx context.Context) error {
 	}
 
 	var engine *app.App
-	for i, service := range services {
-		service.Methods = slices.Clone(service.Methods)
-		for j, method := range service.Methods {
-			service.Methods[j].Invoke = application.observe(service.Name+"/"+method.Name, func() bool { return engine.Ready() }, method.Invoke)
-		}
-		services[i] = service
-	}
+	isReady := func() bool { return engine.Ready() }
 	config := application.config
 	var bindings []app.Binding
 	if config.grpcAddress != "" {
 		bindings = append(bindings, app.Binding{Name: string(rpc.ProtocolGRPC), Address: config.grpcAddress,
-			Build: func(listener net.Listener) (app.Server, error) { return transport.GRPCServer(listener, services) }})
+			Build: func(listener net.Listener) (app.Server, error) {
+				return transport.GRPCServer(listener, application.observeServices(services, rpc.ProtocolGRPC, isReady))
+			}})
 	}
 	if config.microRPCAddress != "" {
 		bindings = append(bindings, app.Binding{Name: string(rpc.ProtocolMicroV2), Address: config.microRPCAddress,
 			Build: func(listener net.Listener) (app.Server, error) {
-				return transport.MicroRPCServer(listener, config.name, services)
+				return transport.MicroRPCServer(listener, config.name, application.observeServices(services, rpc.ProtocolMicroV2, isReady))
 			}})
 	}
 
@@ -141,21 +137,30 @@ func (application *App) publish(ctx context.Context, endpoints []app.Endpoint) (
 
 type unaryCall func(context.Context, proto.Message) (proto.Message, error)
 
-func (application *App) observe(operation string, ready func() bool, invoke unaryCall) unaryCall {
+func (application *App) observeServices(services []transport.Service, protocol rpc.Protocol, ready func() bool) []transport.Service {
+	observed := slices.Clone(services)
+	for serviceIndex, service := range observed {
+		service.Methods = slices.Clone(service.Methods)
+		for methodIndex, method := range service.Methods {
+			observation := rpcObservation{service: application.config.name, protocol: protocol, operation: "/" + service.Name + "/" + method.Name}
+			service.Methods[methodIndex].Invoke = application.observe(observation, ready, method.Invoke)
+		}
+		observed[serviceIndex] = service
+	}
+	return observed
+}
+
+func (application *App) observe(observation rpcObservation, ready func() bool, invoke unaryCall) unaryCall {
 	return func(ctx context.Context, request proto.Message) (proto.Message, error) {
-		if !ready() {
-			return nil, &rpc.Error{Code: rpc.Unavailable, Reason: rpc.ServiceUnavailableReason, Message: "service is unavailable"}
-		}
 		started := time.Now()
-		application.inFlight.Add(1)
-		response, err := invoke(ctx, request)
-		remaining := application.inFlight.Add(-1)
-		level := slog.LevelDebug
-		if err != nil {
-			level = slog.LevelWarn
+		if !ready() {
+			err := &rpc.Error{Code: rpc.Unavailable, Reason: rpc.ServiceUnavailableReason, Message: "service is unavailable"}
+			observation.finished(ctx, "rpc_finished", started, err, slog.Int64("in_flight", application.inFlight.Load()))
+			return nil, err
 		}
-		slog.Log(ctx, level, "RPC request completed", "event", "rpc_finished", "operation", operation,
-			"failed", err != nil, "duration_us", time.Since(started).Microseconds(), "in_flight", remaining)
+		observation.started(ctx, application.inFlight.Add(1))
+		response, err := invoke(ctx, request)
+		observation.finished(ctx, "rpc_finished", started, err, slog.Int64("in_flight", application.inFlight.Add(-1)))
 		return response, err
 	}
 }

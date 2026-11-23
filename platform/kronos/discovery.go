@@ -70,9 +70,11 @@ func (client *Client) resolve(ctx context.Context, serviceName string) error {
 func (client *Client) refreshService(serviceName string, view *serviceView) {
 	ctx, cancel := context.WithTimeout(client.ctx, discoveryBudget)
 	defer cancel()
+	started := time.Now()
 	addresses, err := client.config.registry.Lookup(ctx, serviceName, string(client.config.protocol))
 	if err != nil && client.ctx.Err() == nil {
-		slog.WarnContext(ctx, "RPC discovery failed", "event", "rpc_discovery_failed", "service", serviceName, "protocol", client.config.protocol, "error", err)
+		slog.WarnContext(ctx, "RPC discovery failed", "event", "rpc_discovery_failed", "service", serviceName,
+			"protocol", client.config.protocol, "duration_us", time.Since(started).Microseconds(), "error", err)
 	}
 	addresses = slices.Clone(addresses)
 	slices.Sort(addresses)

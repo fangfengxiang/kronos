@@ -151,6 +151,11 @@ func assertBoundedDiscoveryFailure(t *testing.T, registry *etcd.Registry, name s
 			t.Fatal("discovery callers did not return within their budgets")
 		}
 	}
+	_, err = orders.GetOrder(ctx, &order.GetOrderRequest{OrderId: "after-shared-lookup-timeout"})
+	var failure *kronos.Error
+	if !errors.As(err, &failure) || failure.Code != kronos.Unavailable || failure.Reason != "DISCOVERY_FAILED" {
+		t.Fatalf("shared query failure = %v, want DISCOVERY_FAILED", err)
+	}
 }
 
 // registryRelay disconnects only the etcd clients that the test routes through it.

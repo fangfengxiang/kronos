@@ -20,6 +20,7 @@ import (
 var orderProtocols = [...]kronos.WireProtocol{kronos.ProtocolGRPC, kronos.ProtocolMicroV2}
 
 func TestOrderWithdrawsBeforeBothProtocolsDrain(t *testing.T) {
+	logPath := captureRPCLogs(t)
 	registry := &withdrawalBarrier{
 		Registry: openTestRegistry(t), started: make(chan struct{}), proceed: make(chan struct{}),
 	}
@@ -83,6 +84,7 @@ func TestOrderWithdrawsBeforeBothProtocolsDrain(t *testing.T) {
 	for _, call := range calls {
 		assertOrderPortReleased(t, call.address)
 	}
+	assertDrainRPCLogs(t, logPath, name)
 }
 
 func TestOrderShutdownBudgetCancelsBothProtocols(t *testing.T) {
