@@ -7,6 +7,7 @@ COPY core/ core/
 COPY framework/ framework/
 COPY infra/ infra/
 COPY examples/assistant/ examples/assistant/
+COPY examples/textbackend/ examples/textbackend/
 RUN go build -o /out/assistant ./examples/assistant/cmd/assistant
 
 FROM alpine:3.22.8@sha256:49340b346798875b5592e5d420241f2f9cfba5f47e62ebb1446a1b34734e898f

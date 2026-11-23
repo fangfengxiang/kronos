@@ -88,6 +88,18 @@ go tool pprof -top http://127.0.0.1:6060/debug/pprof/heap
 go tool pprof -top http://127.0.0.1:6060/debug/pprof/goroutine
 ```
 
+### 连接独立文本后端
+
+分别启动文本后端和 Assistant。第二条命令为 Assistant 的当前进程接入后端，也可以在启动 JSON 设置 `"text-backend":"127.0.0.1:9290"`。[调用设计](../design/text-backend-rpc.md) · [可执行的 Go 示例](../../examples/textbackend/example_test.go)
+
+```sh
+go run ./examples/textbackend/cmd/textbackend -grpc 127.0.0.1:9290
+```
+
+```sh
+go run ./examples/assistant/cmd/assistant -text-backend 127.0.0.1:9290
+```
+
 ### 通过 Docker Compose 运行
 
 从仓库根目录构建并等待容器就绪。HTTP、gRPC、SSE 和 go-micro v2 分别使用容器端口 `8080`、`9090`、`8081`、`9091`，按下方命令查询宿主回环地址。挂载配置定义各监听和应用关停预算。[Compose 配置](../../compose.yaml) · [容器启动配置](../../examples/assistant/deploy/assistant.json)

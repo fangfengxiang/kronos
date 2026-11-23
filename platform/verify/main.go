@@ -39,7 +39,7 @@ func run(ctx context.Context, arguments []string) error {
 		if err := checkBufVersion(ctx, repository); err != nil {
 			return err
 		}
-		return runCommand(ctx, repository, "buf", "generate", "--template", protoTemplate)
+		return generateProtocols(ctx, repository, repository)
 	default:
 		return fmt.Errorf("unknown verification command %q", arguments[0])
 	}

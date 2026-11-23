@@ -1,4 +1,6 @@
 version: v2
+inputs:
+  - directory: examples/assistant/api
 plugins:
   - local: ["go", "run", "google.golang.org/protobuf/cmd/protoc-gen-go@v1.36.11"]
     out: examples/assistant/internal/wire

@@ -11,12 +11,17 @@ import (
 	"strings"
 )
 
-const (
-	bufVersion        = "1.70.0"
-	protoTemplate     = "tools/proto/buf.gen.yaml"
-	generatedWire     = "examples/assistant/internal/wire"
-	generatedContract = "examples/assistant/contract.kronos.pb.go"
-)
+const bufVersion = "1.70.0"
+
+type protocolTarget struct {
+	serviceDirectory string
+	template         string
+}
+
+var protocolTargets = []protocolTarget{
+	{serviceDirectory: "examples/assistant", template: "tools/proto/buf.gen.yaml"},
+	{serviceDirectory: "examples/textbackend", template: "tools/proto/buf.textbackend.gen.yaml"},
+}
 
 func checkBufVersion(ctx context.Context, repository string) error {
 	command := commandIn(ctx, repository, "buf", "--version")
@@ -34,8 +39,10 @@ func checkProtocol(ctx context.Context, repository string) error {
 	if err := checkBufVersion(ctx, repository); err != nil {
 		return err
 	}
-	if err := runCommand(ctx, repository, "buf", "format", "--diff", "--exit-code", "examples/assistant/api"); err != nil {
-		return err
+	for _, target := range protocolTargets {
+		if err := runCommand(ctx, repository, "buf", "format", "--diff", "--exit-code", filepath.Join(target.serviceDirectory, "api")); err != nil {
+			return err
+		}
 	}
 	if err := runCommand(ctx, repository, "buf", "lint"); err != nil {
 		return err
@@ -45,13 +52,29 @@ func checkProtocol(ctx context.Context, repository string) error {
 		return err
 	}
 	defer os.RemoveAll(outputDirectory)
-	if err := runCommand(ctx, repository, "buf", "generate", "--template", protoTemplate, "--output", outputDirectory); err != nil {
+	if err := generateProtocols(ctx, repository, outputDirectory); err != nil {
 		return err
 	}
-	if err := compareGeneratedFiles(os.DirFS(filepath.Join(outputDirectory, generatedWire)), os.DirFS(filepath.Join(repository, generatedWire))); err != nil {
-		return err
+	for _, target := range protocolTargets {
+		wireDirectory := filepath.Join(target.serviceDirectory, "internal", "wire")
+		if err := compareGeneratedFiles(os.DirFS(filepath.Join(outputDirectory, wireDirectory)), os.DirFS(filepath.Join(repository, wireDirectory))); err != nil {
+			return fmt.Errorf("check %s: %w", wireDirectory, err)
+		}
+		contractPath := filepath.ToSlash(filepath.Join(target.serviceDirectory, "contract.kronos.pb.go"))
+		if err := compareGeneratedFile(os.DirFS(outputDirectory), os.DirFS(repository), contractPath); err != nil {
+			return err
+		}
 	}
-	return compareGeneratedFile(os.DirFS(outputDirectory), os.DirFS(repository), generatedContract)
+	return nil
+}
+
+func generateProtocols(ctx context.Context, repository, outputDirectory string) error {
+	for _, target := range protocolTargets {
+		if err := runCommand(ctx, repository, "buf", "generate", "--template", target.template, "--output", outputDirectory); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func compareGeneratedFiles(regenerated, committed fs.FS) error {

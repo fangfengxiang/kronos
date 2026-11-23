@@ -80,7 +80,7 @@ func TestAssistantReloadKeepsAllListeners(t *testing.T) {
 	if err := command.Process.Signal(syscall.SIGHUP); err != nil {
 		t.Fatal(err)
 	}
-	waitForReloadCondition(t, ctx, "failed candidate reported", func() bool {
+	waitForProcessCondition(t, ctx, "failed candidate reported", func() bool {
 		logs, _ := os.ReadFile(logFile.Name())
 		return hasLogRecord(logs, func(record processLog) bool {
 			return record.Event == "reload_failed" && strings.Contains(record.Error, "exit status 23")
@@ -100,7 +100,7 @@ func TestAssistantReloadKeepsAllListeners(t *testing.T) {
 	if err := command.Process.Signal(syscall.SIGHUP); err != nil {
 		t.Fatal(err)
 	}
-	waitForReloadCondition(t, ctx, "invalid candidate configuration reported", func() bool {
+	waitForProcessCondition(t, ctx, "invalid candidate configuration reported", func() bool {
 		logs, _ := os.ReadFile(logFile.Name())
 		return hasLogRecord(logs, func(record processLog) bool {
 			return record.Event == "app_failed" && strings.Contains(record.Error, `unknown option "unused-option"`)
@@ -137,7 +137,7 @@ func TestAssistantReloadKeepsAllListeners(t *testing.T) {
 	if err := syscall.Kill(replacementPID, syscall.SIGTERM); err != nil {
 		t.Fatal(err)
 	}
-	waitForReloadCondition(t, ctx, "all listeners released after final SIGTERM", func() bool {
+	waitForProcessCondition(t, ctx, "all listeners released after final SIGTERM", func() bool {
 		for _, address := range addresses {
 			listener, err := net.Listen("tcp", address)
 			if err != nil {
@@ -155,7 +155,7 @@ func readPID(path string) int {
 	return pid
 }
 
-func waitForReloadCondition(t *testing.T, ctx context.Context, condition string, observe func() bool) {
+func waitForProcessCondition(t *testing.T, ctx context.Context, condition string, observe func() bool) {
 	t.Helper()
 	retry := time.NewTicker(20 * time.Millisecond)
 	defer retry.Stop()

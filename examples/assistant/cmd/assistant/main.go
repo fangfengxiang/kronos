@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/fangfengxiang/kronos/examples/assistant"
+	"github.com/fangfengxiang/kronos/examples/textbackend"
 	"github.com/fangfengxiang/kronos/framework/app"
 	"github.com/fangfengxiang/kronos/framework/log"
 	"github.com/fangfengxiang/kronos/framework/rpc"
@@ -44,6 +45,7 @@ func run(ctx context.Context, args []string, logger *slog.Logger) (runError erro
 	metricsEnabled := flags.Bool("metrics", false, "expose application metrics on the HTTP listener")
 	traceEndpoint := flags.String("trace-endpoint", "", "OTLP HTTP trace endpoint URL (empty disables tracing)")
 	profileAddress := flags.String("runtime-profile", "", "loopback runtime profile listen address (empty disables profiling)")
+	textBackendAddress := flags.String("text-backend", "", "plaintext text backend gRPC address (empty uses local text generation)")
 	shutdownTimeout := flags.Duration("shutdown-timeout", 5*time.Second, "time allowed for graceful shutdown")
 	reloadPIDFile := flags.String(reloadPIDFileFlag, "", "PID file for SIGHUP reload (empty disables reload)")
 	reloadStartupTimeout := flags.Duration(reloadTimeoutFlag, 30*time.Second, "time allowed for a replacement to become ready")
@@ -61,10 +63,24 @@ func run(ctx context.Context, args []string, logger *slog.Logger) (runError erro
 			return err
 		}
 	}
+	defer func() {
+		if runError == nil {
+			logger.InfoContext(ctx, "assistant stopped", "event", "app_stopped")
+		}
+	}()
+	textModel := echoText
+	if *textBackendAddress != "" {
+		backend, err := textbackend.NewGRPCClient(ctx, *textBackendAddress, 2*time.Second)
+		if err != nil {
+			return err
+		}
+		defer func() { runError = errors.Join(runError, backend.Close()) }()
+		textModel = modelForBackend(backend)
+	}
 
 	// Run builds the bindings after application has been assigned.
 	var application *app.App
-	runner, err := blades.New("assistant", echoText)
+	runner, err := blades.New("assistant", textModel)
 	if err != nil {
 		return err
 	}
@@ -124,11 +140,6 @@ func run(ctx context.Context, args []string, logger *slog.Logger) (runError erro
 	if err != nil {
 		return err
 	}
-	defer func() {
-		if runError == nil {
-			logger.InfoContext(ctx, "assistant stopped", "event", "app_stopped")
-		}
-	}()
 	if *traceEndpoint != "" {
 		tracer, err := oteltrace.New(ctx, oteltrace.Config{ServiceName: "assistant", Endpoint: *traceEndpoint})
 		if err != nil {

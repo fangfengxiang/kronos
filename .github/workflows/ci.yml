@@ -20,7 +20,7 @@ jobs:
         with:
           version: '1.70.0'
           setup_only: true
-      - name: Check Assistant protocol generation
+      - name: Check protocol generation
         run: go run ./platform/verify proto
       - name: Check layer dependencies
         run: go run ./platform/verify deps

@@ -74,10 +74,14 @@ func echoText(ctx context.Context, prompt string) iter.Seq2[string, error] {
 			yield("", err)
 			return
 		}
-		text := []rune(prompt)
-		split := (len(text) + 1) / 2
-		if yield(string(text[:split]), nil) && split < len(text) {
-			yield(string(text[split:]), nil)
-		}
+		emitTextDeltas(prompt, yield)
+	}
+}
+
+func emitTextDeltas(text string, yield func(string, error) bool) {
+	characters := []rune(text)
+	firstDeltaLength := (len(characters) + 1) / 2
+	if yield(string(characters[:firstDeltaLength]), nil) && firstDeltaLength < len(characters) {
+		yield(string(characters[firstDeltaLength:]), nil)
 	}
 }

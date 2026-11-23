@@ -6,6 +6,7 @@
 
 - 生成 `contract.kronos.pb.go`，公开消息、枚举、枚举值和 Open Go API 的 `oneof` 分支类型。生成 `<Service>UnaryService` 接口，其方法签名使用 `context.Context` 和协议声明的请求响应。已生成的协议类型以 Go 别名公开，保持描述符、序列化和类型身份。
 - 已发布的 Assistant `Service` 和短错误枚举名称继续由公开包提供。实际应用实现采用生成的一元接口。流事件使用生成的公开类型，流业务回调、不同传输的连接及注册由服务现有装配提供。[RPC 流客户端](rpc-stream-client.md)
+- 独立文本后端复用同一插件生成 `TextBackendServiceUnaryService` 和公开消息。每个服务声明各自的 Buf 输入与 Go 产物路径，由同一个仓库命令生成和检查。[调用独立文本后端](text-backend-rpc.md)
 - 插件拒绝公开包无效、输入私有路径不属于该服务、公开名称冲突和未公开的私有方法签名类型。错误包含被拒绝的输入名称。支持 Go Protobuf Open API 和 Proto3 optional。
 
 ## 边界与取舍

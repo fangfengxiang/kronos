@@ -10,3 +10,5 @@
 !examples/
 !examples/assistant/
 !examples/assistant/**
+!examples/textbackend/
+!examples/textbackend/**

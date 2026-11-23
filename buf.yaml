@@ -1,6 +1,7 @@
 version: v2
 modules:
   - path: examples/assistant/api
+  - path: examples/textbackend/api
 deps:
   - buf.build/googleapis/googleapis
 lint:

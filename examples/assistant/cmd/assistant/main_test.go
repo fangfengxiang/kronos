@@ -126,13 +126,18 @@ func TestAssistantProcessShutsDownOnSIGTERM(t *testing.T) {
 
 func buildAssistant(t *testing.T) string {
 	t.Helper()
-	binary := filepath.Join(t.TempDir(), "assistant")
+	return buildExampleProgram(t, "assistant", ".")
+}
+
+func buildExampleProgram(t *testing.T, name, packagePath string) string {
+	t.Helper()
+	binary := filepath.Join(t.TempDir(), name)
 	buildContext, cancelBuild := context.WithTimeout(t.Context(), 2*time.Minute)
 	defer cancelBuild()
-	build := exec.CommandContext(buildContext, "go", "build", "-o", binary, ".")
+	build := exec.CommandContext(buildContext, "go", "build", "-o", binary, packagePath)
 	build.Env = append(os.Environ(), "GOWORK=off")
 	if output, err := build.CombinedOutput(); err != nil {
-		t.Fatalf("build assistant: %v\n%s", err, output)
+		t.Fatalf("build %s: %v\n%s", name, err, output)
 	}
 	return binary
 }

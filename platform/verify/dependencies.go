@@ -47,10 +47,11 @@ func checkDependencies(ctx context.Context, repository string) error {
 }
 
 func allowedImport(source, dependency string) bool {
-	const assistant = kronosModule + "/examples/assistant"
-	if hasPackagePrefix(source, assistant) &&
+	const examples = kronosModule + "/examples/"
+	if relative, isExample := strings.CutPrefix(source, examples); isExample &&
 		(hasPackagePrefix(dependency, "github.com/go-kratos/kratos") || hasPackagePrefix(dependency, "google.golang.org/grpc")) {
-		return hasPackagePrefix(source, assistant+"/internal/binding") || hasPackagePrefix(source, assistant+"/internal/wire")
+		service, _, _ := strings.Cut(relative, "/")
+		return hasPackagePrefix(source, examples+service+"/internal/binding") || hasPackagePrefix(source, examples+service+"/internal/wire")
 	}
 	if !hasPackagePrefix(dependency, kronosModule) {
 		return true

@@ -9,6 +9,7 @@ import (
 
 func TestAllowedImport(t *testing.T) {
 	const assistant = kronosModule + "/examples/assistant"
+	const textBackend = kronosModule + "/examples/textbackend"
 	const kratos = "github.com/go-kratos/kratos/v3/transport/http"
 	testCases := []struct {
 		name       string
@@ -28,6 +29,9 @@ func TestAllowedImport(t *testing.T) {
 		{"binding to Kratos", assistant + "/internal/binding", kratos, true},
 		{"generated code to gRPC", assistant + "/internal/wire/v1", "google.golang.org/grpc/status", true},
 		{"similarly named business directory", assistant + "/internal/bindings", kratos, false},
+		{"text backend command to Kratos", textBackend + "/cmd/textbackend", kratos, false},
+		{"text backend contract to gRPC", textBackend, "google.golang.org/grpc", false},
+		{"text backend binding to Kratos", textBackend + "/internal/binding", kratos, true},
 	}
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
