@@ -1,0 +1,29 @@
+# 应用装配与关停
+
+## 消费入口
+
+Assistant 命令入口显式提供 HTTP 与 gRPC，按配置启用 SSE 与 go-micro v2 兼容监听，并持有 `SIGINT`、`SIGTERM` 的订阅。启用重载时另订阅 `SIGHUP`。`framework/app` 接收标准上下文、监听地址及关停预算。业务实现通过 `Service.Run` 提供一元调用，通过 `StreamService.StreamRun` 提供流式调用。Kratos 在私有适配内负责服务循环、标准传输与连接关停。[SSE 与 go-micro v2 监听](additional-listeners.md) · [优雅重载](graceful-reload.md)
+
+## 运行行为
+
+1. 每个 `App` 实例运行一次。先按声明顺序取得所有 TCP 监听器，再用它们构造服务。应用持有监听器和成功构造的服务。构造未完成时，应用限时逆序停止已交接的服务，并释放监听器。失败的构造函数负责清理尚未交接的资源。首因和清理错误由 `Run` 返回。
+2. 全部服务进入第一次 `Accept` 后发布就绪并开始接收连接。探针通过标准 HTTP handler 提供 `/livez` 和 `/readyz`，Assistant 将它们注册在自己的 HTTP 监听器上。业务调用在入口读取就绪状态，通过检查后才交给用例。
+3. 停止信号撤销就绪，所有已启动服务使用同一个有截止时间的上下文并行关停。应用给在途请求保留原本的运行上下文。预算耗尽时取消服务上下文，Kratos 负责强制关闭连接，应用释放监听器。`Run` 保留服务失败与清理失败。原生监听器因正常关停已关闭时，重复清理视为成功。
+
+## 复用取舍
+
+- 参考服务真实入口将依赖初始化、注册及运行放在一处，类库按声明顺序初始化并在首个错误处停止。沿用显式装配、顺序取得资源和单次关停。参考测试以启动调用和定时等待为主。本切面用端口重绑与真实请求观察就绪和释放。
+- 直接复用 Kratos HTTP/gRPC 的 `Start`、`Stop` 与超时后强制关闭。Kratos v3.0.0 的 `App.Run` 用 goroutine 调度作为启动观测，并在内部注册进程级信号。Kronos 只协调监听器所有权与就绪、摘流。信号由命令入口通过 `signal.NotifyContext` 持有和释放。停止请求与在途工作的上下文相互独立。[Kratos 应用实现](https://github.com/go-kratos/kratos/blob/v3.0.0/app.go) · [Go 信号上下文](https://pkg.go.dev/os/signal#NotifyContext)
+- 当前探针与 HTTP 应用共用监听器。摘流时调用方可能观察到就绪撤销或监听器关闭。把服务发现和容器发布接入同一状态是后续消费者切面。
+
+## 验收
+
+- 占用第二个端口后触发真实启动失败，第一个端口可以立即重新绑定，实例没有发布就绪。构造和运行失败也能触发清理。
+- 用一元 HTTP 和 gRPC 真实调用验证探针、共享用例及请求拒绝。开始一个在途请求后触发停止，覆盖预算内完成和预算到期后取消。
+- 关闭工作区构建 Assistant 命令并启动真实子进程，从四个入口调用后发送 `SIGTERM`，检查退出状态与端口释放。分别运行 `framework/app` 包的竞态检查和仓库跨模块检查。
+
+## 实测与复盘
+
+- Go 1.25.0 下，`bash scripts/test-modules.sh`、`bash scripts/check-layer-deps.sh`、`bash tools/proto/generate.sh --check` 通过。根模块及 `framework/app` 的 `GOWORK=off go vet ./...` 通过。
+- 模块测试验证第二个端口被占用后的重绑、已构造服务的失败回滚、错误聚合和探针状态。真实 HTTP、gRPC 的在途请求完成与超时取消用例在竞态检测下重复八次通过。
+- Assistant 子进程测试构建并启动命令，探针就绪后通过四个入口发起请求，发送 `SIGTERM` 后观测到退出码为零，四个端口均可重新绑定。容器、注册发现与模型接入由各自的纵切验收。
