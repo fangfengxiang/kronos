@@ -17,6 +17,7 @@ import (
 	"github.com/fangfengxiang/kronos/framework/log"
 	"github.com/fangfengxiang/kronos/framework/rpc"
 	"github.com/fangfengxiang/kronos/infra/consul"
+	"github.com/fangfengxiang/kronos/infra/redis"
 )
 
 func main() {
@@ -37,6 +38,9 @@ func run(ctx context.Context, arguments []string) (runError error) {
 	consulEndpoint := flags.String("consul", "", "Consul HTTP(S) agent URL (empty disables registration)")
 	advertiseAddress := flags.String("advertise-grpc", "", "advertised gRPC host:port (defaults to the bound address)")
 	profileName := flags.String("mysql-profile", "", "text profile name in MySQL (empty uses the built-in profile)")
+	cacheTTL := flags.Duration("profile-cache-ttl", 0, "Redis TTL for MySQL profiles (zero disables the cache)")
+	cacheNamespace := flags.String("profile-cache-namespace", "default", "namespace for MySQL profile keys in Redis")
+	cacheCluster := flags.Bool("profile-cache-cluster", false, "use Redis Cluster for the profile cache")
 	if err := flags.Parse(arguments); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
 			return nil
@@ -45,6 +49,9 @@ func run(ctx context.Context, arguments []string) (runError error) {
 	}
 	if flags.NArg() != 0 {
 		return errors.New("unexpected positional arguments")
+	}
+	if *cacheTTL != 0 && (*cacheTTL < time.Millisecond || *profileName == "" || strings.TrimSpace(*cacheNamespace) == "") {
+		return errors.New("profile cache requires a MySQL profile, a namespace, and a TTL of at least one millisecond")
 	}
 	var registry *consul.Registry
 	if *consulEndpoint != "" {
@@ -65,6 +72,16 @@ func run(ctx context.Context, arguments []string) (runError error) {
 		}
 		defer func() { runError = errors.Join(runError, profile.pool.Close()) }()
 		service.prefixSource = profile
+	}
+	if *cacheTTL > 0 {
+		cache, err := redis.New(redis.Config{URL: os.Getenv("KRONOS_TEXTBACKEND_REDIS_URL"), Cluster: *cacheCluster})
+		if err != nil {
+			return err
+		}
+		defer func() { runError = errors.Join(runError, cache.Close()) }()
+		service.prefixSource = cachedProfile{
+			origin: service.prefixSource, cache: cache, key: profileCacheKey(*cacheNamespace, *profileName), ttl: *cacheTTL,
+		}
 	}
 	application, err := app.New(app.Config{ShutdownTimeout: 5 * time.Second}, app.Binding{
 		Name:    "gRPC",

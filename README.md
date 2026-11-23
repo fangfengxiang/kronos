@@ -22,6 +22,7 @@ Kronos 是一个面向全球应用的、协议优先、云原生、AI 原生、�
 | [Consul 服务注册与订阅](docs/design/consul-service-registration.md) | 说明健康实例发布、地址变化与注销 |
 | [动态发现文本后端](docs/design/text-backend-discovery.md) | 说明 gRPC 按服务名调用、实例轮询和撤销路由 |
 | [MySQL 建池与文本配置](docs/design/mysql-text-profiles.md) | 说明建池、事务、上下文及 TextBackend 的配置读取 |
+| [Redis 缓存与回源](docs/design/redis-text-profile-cache.md) | 说明单机和 Cluster 的 TTL、原子回填及故障回源 |
 | [RPC 客户端协议选择](docs/design/rpc-client-protocol.md) | 说明标准 gRPC 与 go-micro v2 的调用选项和互通验收 |
 | [标准 gRPC 流客户端](docs/design/rpc-stream-client.md) | 说明公开流事件、终态确认和取消传播 |
 | [请求元数据](docs/design/request-metadata.md) | 说明请求标识、上下文传播和兼容监听行为 |

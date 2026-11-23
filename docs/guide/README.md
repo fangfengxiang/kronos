@@ -118,6 +118,12 @@ TextBackend 可从 MySQL 读取文本前缀。先在部署库应用表定义并�
 go run ./examples/textbackend/cmd/textbackend -mysql-profile greeting
 ```
 
+若为 MySQL 配置启用 Redis 缓存，设置 `KRONOS_TEXTBACKEND_REDIS_URL` 和 `-profile-cache-ttl`。共享 Redis 的部署分别给出 `-profile-cache-namespace`。Cluster 配置使用 `-profile-cache-cluster`，可在 URL 中用多个 `addr` 增加种子地址。[Redis 缓存用法与实测](../design/redis-text-profile-cache.md) · [可执行的 Go 示例](../../infra/redis/integration_test.go)
+
+```sh
+go run ./examples/textbackend/cmd/textbackend -mysql-profile greeting -profile-cache-ttl 5s -profile-cache-namespace demo
+```
+
 ### 通过 Docker Compose 运行
 
 从仓库根目录构建并等待容器就绪。HTTP、gRPC、SSE 和 go-micro v2 分别使用容器端口 `8080`、`9090`、`8081`、`9091`，按下方命令查询宿主回环地址。挂载配置定义各监听和应用关停预算。[Compose 配置](../../compose.yaml) · [容器启动配置](../../examples/assistant/deploy/assistant.json)

@@ -18,4 +18,6 @@
 
 [`infra/prometheus`](prometheus) 提供独立请求计数、延迟直方图和标准 HTTP 抓取处理器。[请求指标](../docs/design/request-metrics.md)
 
+[`infra/redis`](redis) 提供 Redis 单机与 Cluster 的字符串读取、条件写入、TTL 和删除。[Redis 缓存与回源](../docs/design/redis-text-profile-cache.md)
+
 [`infra/runtimeprofile`](runtimeprofile) 在独立回环监听上提供 Go 堆采样和 goroutine 调用栈快照。[按需运行时快照](../docs/design/runtime-profiles.md)

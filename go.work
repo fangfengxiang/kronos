@@ -17,6 +17,7 @@ use (
 	./infra/mysql
 	./infra/oteltrace
 	./infra/prometheus
+	./infra/redis
 	./infra/runtimeprofile
 	./platform/protogen
 	./platform/verify
