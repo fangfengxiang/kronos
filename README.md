@@ -18,6 +18,7 @@ Kronos 是一个面向全球应用的、协议优先、云原生、AI 原生、�
 | [Go 公开契约生成](docs/design/protobuf-go-contract.md) | 说明公开 Protobuf 类型、一元服务接口和生成验收 |
 | [原生 Go 验收](docs/design/go-verification.md) | 说明跨模块测试、业务依赖边界与协议生成检查 |
 | [一元 RPC 防腐层](docs/design/rpc-boundary.md) | 说明业务接口、Kratos 适配、期限与错误转换 |
+| [Order 服务治理](docs/design/service-governance.md) | 说明统一装配、双协议发现、故障恢复与 Linux 验收 |
 | [RPC 请求处理恢复](docs/design/rpc-handler-recovery.md) | 说明一元和流处理异常、稳定错误及安全诊断 |
 | [调用独立文本后端](docs/design/text-backend-rpc.md) | 说明双进程 gRPC 直连与调用验收 |
 | [Consul 服务注册与订阅](docs/design/consul-service-registration.md) | 说明健康实例发布、地址变化与注销 |
@@ -49,6 +50,8 @@ Kronos 是一个面向全球应用的、协议优先、云原生、AI 原生、�
 ## 交付状态
 
 Core 包提供 goroutine 执行、语言匹配、消息查找和 IANA 时区转换。Assistant 通过 Blades 执行确定性文本模型，使用 Docker Compose 挂载配置并运行 HTTP、gRPC、SSE 与 go-micro v2 四个监听。Linux 容器已验证探针、实际调用、启动失败和进程关停。[Compose 使用指南](docs/guide/README.md#通过-docker-compose-运行)
+
+Order 使用 `kronos.New` 注册一个类型化服务，通过两个独立端口提供标准 gRPC 与 go-micro v2。调用方通过生成客户端按服务名发现实例，默认 gRPC。参考流程包括真实 etcd、官方旧客户端与服务端及故障验收。[运行 Order](docs/guide/README.md#运行-order)
 
 仓库内置的 `kronos-framework` Skill 记录定义协议、生成代码、接线、Go 验收和 Linux 部署流程。[框架使用 Skill](.agents/skills/kronos-framework/SKILL.md)
 

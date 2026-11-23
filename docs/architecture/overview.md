@@ -9,8 +9,9 @@ Kronos 面向全球应用，沿同一份 Protobuf 契约交付 gRPC、可选 HTT
 | 边界 | 所有权 |
 | --- | --- |
 | 协议与生成 | 服务拥有版本化 `.proto`。生成工具产出 Go 消息、客户端和注册代码，并按显式映射生成 HTTP 处理器。 |
-| 传输 | 分别处理 gRPC 与 HTTP 的请求、认证入口、状态映射和连接取消。两种入口进入同一个应用用例。 |
+| 传输 | 按协议处理 gRPC、HTTP、SSE 或旧一元 RPC 的请求、认证入口、状态映射和连接取消。SDK 留在适配边界，各入口进入服务自己的应用用例。 |
 | 应用装配 | 接受显式声明的组件、配置、默认项和生命周期钩子。确定何时就绪、何时摘流、资源何时移交以及失败后如何退出。 |
+| 服务治理 | 统一一元入口复用应用生命周期，注入 etcd 维护按协议划分的地址与租约。客户端按服务名路由和复用连接。 |
 | AI 工作负载 | 应用按客户端契约定义 Agent 结果和流事件。Blades 适配层负责将运行时事件转换为公开协议，传播取消与期限。 |
 | 全球化 | 统一请求语言协商、选定语言传播和资源查找。应用拥有字典、提示词和领域规则。语言、地区、时区和业务日历分别建模。 |
 
@@ -22,6 +23,8 @@ Kronos 面向全球应用，沿同一份 Protobuf 契约交付 gRPC、可选 HTT
 
 参考应用的 Agent 从一元和流式入口使用同一个用例。默认采用确定性模型替身。测试分别检查事件顺序、终态、取消、端到端语言处理和进程退出。首版范围、异常行为和测试分工见[首版落地设计](../design/first-vertical-slice.md)。
 
+Order 验证同一个 Protobuf 实现通过标准 gRPC 与 go-micro v2 两种独立监听服务，并以真实 etcd 完成地址发布、双向兼容调用、摘流和故障恢复。[服务治理](../design/service-governance.md)
+
 ## 代码分层
 
 | 层 | 目录与职责 |
@@ -30,12 +33,12 @@ Kronos 面向全球应用，沿同一份 Protobuf 契约交付 gRPC、可选 HTT
 | 基础设施 | [`infra/`](../../infra/README.md)。将外部系统接入消费方需要的边界。 |
 | 框架 | [`framework/`](../../framework/README.md)。装配、RPC 传输和应用生命周期。 |
 | 平台 | [`platform/`](../../platform/README.md)。跨服务契约、生成工具与交付约定。 |
-| 业务 | `examples/` 中的 Assistant 和 TextBackend 持有服务契约、领域规则、用例及资源。 |
+| 业务 | `examples/` 中的 Assistant、TextBackend 和 Order 持有各自的服务契约、领域规则、用例及资源。 |
 
 依赖从使用方指向较低职责层。`core/` 保持独立，`infra/` 与 `framework/` 可使用核心原语，具体基础设施实例由应用入口注入框架。平台工具使用各层公开接口。各独立封装包通过自己的 Go 模块管理依赖，仓库通过 `go.work` 联调。允许的跨层导入见 [ADR 0004](../adr/0004-layer-and-module-boundaries.md)。
 
 ## 仓库职责
 
-`docs/` 记录架构、设计、ADR 和框架使用文档。`examples/` 承载可运行参考应用。`tools/proto/` 固定生成模板和工具版本，`platform/verify` 提供生成与原生 Go 验收入口。`test/integration/` 和 `test/e2e/` 分别验证真实传输和容器交付。框架操作 Skill 随参考应用交付。[框架使用 Skill](../../.agents/skills/kronos-framework/SKILL.md)
+`docs/` 记录架构、设计、ADR 和使用文档。`examples/` 承载可运行参考应用。`tools/proto/` 固定生成模板和工具版本，`platform/verify` 提供生成与原生 Go 验收入口。`test/interop/` 验证上游互通，`test/e2e/` 验证容器交付。框架操作 Skill 随参考应用交付。[框架使用 Skill](../../.agents/skills/kronos-framework/SKILL.md)
 
 具体决定由 [ADR 索引](../adr/README.md) 追踪。

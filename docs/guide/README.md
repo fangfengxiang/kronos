@@ -31,7 +31,17 @@ go run ./platform/verify test
 
 ## 运行 Order
 
-准备可访问的 etcd v3。Order 命令默认连接 `127.0.0.1:2379`，启动 gRPC `127.0.0.1:9090` 和 MicroRPC `127.0.0.1:9091`。可以通过 `KRONOS_ETCD_ENDPOINT`、`KRONOS_ORDER_GRPC`、`KRONOS_ORDER_MICRORPC` 或 `KRONOS_ORDER_ADVERTISE_HOST` 配置实际部署。
+准备可访问的 etcd v3。以下命令启动与 Linux 验收相同的官方镜像，宿主端口仅向本机开放。命令在终端运行，结束后容器自动清理。
+
+```sh
+docker run --rm -p 127.0.0.1:2379:2379 \
+  -e ETCD_LISTEN_CLIENT_URLS=http://0.0.0.0:2379 \
+  -e ETCD_ADVERTISE_CLIENT_URLS=http://127.0.0.1:2379 \
+  -e ETCD_DATA_DIR=/tmp/kronos-etcd \
+  gcr.io/etcd-development/etcd@sha256:b29d816b546a1966fe7034a33b34e231fa98c47ce4d2883f70b0555020b22132
+```
+
+Order 默认连接 `127.0.0.1:2379`，启动 gRPC `127.0.0.1:9090` 和 MicroRPC `127.0.0.1:9091`。部署可设置 `KRONOS_ETCD_ENDPOINT`、`KRONOS_ORDER_GRPC`、`KRONOS_ORDER_MICRORPC` 和 `KRONOS_ORDER_ADVERTISE_HOST`。服务名默认为 Proto 全名，旧系统迁移时用 `KRONOS_ORDER_NAME` 设置双方约定的发现名。[应用装配](../../examples/order/cmd/order/main.go)
 
 ```sh
 GOWORK=off go run ./examples/order/cmd/order
@@ -44,7 +54,16 @@ GOWORK=off go run ./examples/order/cmd/order-client -id 订单-01
 GOWORK=off go run ./examples/order/cmd/order-client -protocol micro-v2 -id 订单-01
 ```
 
-用 `go run ./platform/verify generate` 生成或更新公开契约，使用独立 etcd 与两版官方旧 SDK 复核双向调用。[Order Proto](../../examples/order/api/kronos/order/v1/order.proto) · [治理验收](../design/service-governance.md)
+两个命令均返回 `订单-01 confirmed`。使用自定义服务名时在客户端带上 `-service`。修改 Order 的 Proto 后执行 `go run ./platform/verify generate` 更新公开契约。[Order Proto](../../examples/order/api/kronos/order/v1/order.proto) · [治理验收](../design/service-governance.md)
+
+以下示例单独启动 Order 与两版官方 go-micro v2。旧客户端发现并调用 Order，Order 客户端命令显式用 `micro-v2` 查找旧服务端，返回 `订单-03 legacy-confirmed`。
+
+```sh
+KRONOS_ETCD_TEST_ADDRESS=127.0.0.1:2379 GOWORK=off go test \
+  -tags=interop,etcd_interop -count=1 -run '^TestOrderThroughOfficialRegistryAndClients$' -v ./test/interop/microv2
+```
+
+完整验收覆盖断连、进程崩溃、租约恢复和双协议摘流。[CI 与本地命令](../design/go-verification.md#order-治理验收) · [RPC 日志字段](../design/structured-logging.md#统一一元-rpc-的事件)
 
 ## 生成 Assistant 协议
 

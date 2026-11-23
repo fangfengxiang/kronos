@@ -6,6 +6,7 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/json"
+	"log"
 	"log/slog"
 	"os"
 	"slices"
@@ -21,9 +22,12 @@ func captureRPCLogs(t *testing.T) string {
 		t.Fatal(err)
 	}
 	original := slog.Default()
+	originalOutput, originalFlags := log.Writer(), log.Flags()
 	slog.SetDefault(slog.New(slog.NewJSONHandler(output, &slog.HandlerOptions{Level: slog.LevelDebug})))
 	t.Cleanup(func() {
 		slog.SetDefault(original)
+		log.SetOutput(originalOutput)
+		log.SetFlags(originalFlags)
 		_ = output.Close()
 		if t.Failed() {
 			log, _ := os.ReadFile(output.Name())

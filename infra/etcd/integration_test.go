@@ -119,6 +119,11 @@ func integrationRegistry(t *testing.T) *Registry {
 			t.Error(err)
 		}
 	})
+	readinessContext, cancelReadiness := context.WithTimeout(t.Context(), 10*time.Second)
+	defer cancelReadiness()
+	if _, err := registry.client.Get(readinessContext, "/kronos/health", clientv3.WithLimit(1)); err != nil {
+		t.Fatalf("etcd at %s did not become ready: %v", endpoint, err)
+	}
 	return registry
 }
 

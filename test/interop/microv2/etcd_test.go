@@ -43,9 +43,12 @@ func TestOrderThroughOfficialRegistryAndClients(t *testing.T) {
 		t.Fatalf("Order published the same address for both protocols: %s", grpcAddress)
 	}
 	assertOrderOverGRPC(t, grpcAddress)
+	orderClientBinary := buildOrderCommand(t, "order-client")
 	t.Run("Kronos clients to Order", func(t *testing.T) {
 		assertTypedOrder(t, registry, serviceName, "confirmed")
 		assertTypedOrder(t, registry, serviceName, "confirmed", kronos.Protocol(kronos.ProtocolMicroV2))
+		assertOrderClientCommand(t, orderClientBinary, endpoint, serviceName, "confirmed")
+		assertOrderClientCommand(t, orderClientBinary, endpoint, serviceName, "confirmed", "-protocol", "micro-v2")
 	})
 
 	for _, version := range []string{"v2.0.0", "v2.9.1"} {
@@ -67,6 +70,7 @@ func TestOrderThroughOfficialRegistryAndClients(t *testing.T) {
 				t.Fatalf("official server publication = %v, %v, want %s", addresses, err, legacyAddress)
 			}
 			assertTypedOrder(t, registry, legacyName, "legacy-confirmed", kronos.Protocol(kronos.ProtocolMicroV2))
+			assertOrderClientCommand(t, orderClientBinary, endpoint, legacyName, "legacy-confirmed", "-protocol", "micro-v2")
 			defaultClient, err := kronos.NewClient(kronos.Registry(registry), kronos.Name(legacyName))
 			if err != nil {
 				t.Fatal(err)
@@ -129,6 +133,26 @@ func runRegistryFixture(t *testing.T, ctx context.Context, binary, endpoint, ser
 	return strings.TrimSpace(string(output))
 }
 
+func assertOrderClientCommand(t *testing.T, binary, endpoint, name, wantStatus string, options ...string) {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+	defer cancel()
+	const orderID = "订单-03"
+	arguments := append([]string{"-etcd", endpoint, "-service", name, "-id", orderID}, options...)
+	output, err := exec.CommandContext(ctx, binary, arguments...).Output()
+	if err != nil {
+		var failure *exec.ExitError
+		if errors.As(err, &failure) {
+			t.Fatalf("Order command: %v\n%s", err, failure.Stderr)
+		}
+		t.Fatal(err)
+	}
+	if got, want := strings.TrimSpace(string(output)), orderID+" "+wantStatus; got != want {
+		t.Fatalf("Order command output = %q, want %q", got, want)
+	}
+	t.Logf("Order command for %s returned %s", name, strings.TrimSpace(string(output)))
+}
+
 type orderProcess struct {
 	command *exec.Cmd
 	done    chan struct{}
@@ -136,16 +160,22 @@ type orderProcess struct {
 	logPath string
 }
 
-func startOrderProcess(t *testing.T, endpoint, serviceName string) *orderProcess {
+func buildOrderCommand(t *testing.T, name string) string {
 	t.Helper()
 	repository, err := filepath.Abs("../../..")
 	if err != nil {
 		t.Fatal(err)
 	}
-	binary := filepath.Join(t.TempDir(), "order")
+	binary := filepath.Join(t.TempDir(), name)
 	ctx, cancel := context.WithTimeout(t.Context(), 3*time.Minute)
 	defer cancel()
-	fixtureGo(t, ctx, repository, "build", "-o", binary, "./examples/order/cmd/order")
+	fixtureGo(t, ctx, repository, "build", "-o", binary, "./examples/order/cmd/"+name)
+	return binary
+}
+
+func startOrderProcess(t *testing.T, endpoint, serviceName string) *orderProcess {
+	t.Helper()
+	binary := buildOrderCommand(t, "order")
 	process := &orderProcess{command: exec.Command(binary), done: make(chan struct{})}
 	process.command.Env = append(os.Environ(),
 		"KRONOS_ETCD_ENDPOINT="+endpoint, "KRONOS_ORDER_NAME="+serviceName,

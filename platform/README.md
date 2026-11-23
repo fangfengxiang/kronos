@@ -6,4 +6,6 @@
 
 [`platform/verify`](verify) 是独立 Go 命令模块，提供跨模块测试、分层检查和协议生成验收入口。[原生 Go 验收](../docs/design/go-verification.md)
 
+[`platform/kronos`](kronos) 是独立 Go 模块，提供类型化一元服务的装配、发现调用、连接所有权和稳定错误。[Order 服务治理](../docs/design/service-governance.md)
+
 [`platform/protogen`](protogen) 是独立 Go 生成插件，提供公开协议类型与一元服务接口。[Protobuf 的 Go 公开契约生成](../docs/design/protobuf-go-contract.md)
