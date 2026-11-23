@@ -1,14 +1,18 @@
 package assistant_test
 
 import (
+	"bytes"
 	"context"
 	"errors"
+	"log/slog"
 	"net"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/fangfengxiang/kronos/examples/assistant"
+	"github.com/fangfengxiang/kronos/framework/log"
 	"github.com/fangfengxiang/kronos/framework/request"
 	"github.com/fangfengxiang/kronos/framework/rpc"
 )
@@ -90,6 +94,58 @@ func TestGRPCStreamCancelsWhenReceiverStops(t *testing.T) {
 	}
 	if err := client.StreamRun(ctx, input, func(*assistant.StreamRunResponse) error { return nil }); !errors.Is(err, rpc.ErrClientClosed) {
 		t.Fatalf("stream after close = %v, want ErrClientClosed", err)
+	}
+}
+
+func TestGRPCStreamRecoversAfterPartialResponse(t *testing.T) {
+	var diagnostics bytes.Buffer
+	previous := slog.Default()
+	slog.SetDefault(log.NewJSON(&diagnostics, nil))
+	t.Cleanup(func() { slog.SetDefault(previous) })
+	address := startGRPCStreamServer(t, func(_ context.Context, request *assistant.StreamRunRequest, emit func(string) error) error {
+		if err := emit("首段"); err != nil {
+			return err
+		}
+		if request.GetPrompt() == "panic" {
+			panic(privateHandlerPanic)
+		}
+		return nil
+	})
+	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+	defer cancel()
+	client, err := assistant.NewGRPCClient(ctx, address, time.Second)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { client.Close() })
+	const callerID = "grpc-recovery.01"
+	callContext := request.WithID(ctx, callerID)
+	for _, prompt := range []string{"panic", "after panic"} {
+		var deltas []string
+		completions := 0
+		err := client.StreamRun(callContext, &assistant.StreamRunRequest{Prompt: prompt}, func(event *assistant.StreamRunResponse) error {
+			if event.GetCompleted() != nil {
+				completions++
+			} else {
+				deltas = append(deltas, event.GetTextDelta())
+			}
+			return nil
+		})
+		if !slices.Equal(deltas, []string{"首段"}) {
+			t.Fatalf("stream deltas = %q", deltas)
+		}
+		if prompt == "panic" {
+			var failure *rpc.Error
+			if !errors.As(err, &failure) || failure.Code != rpc.Internal || failure.Reason != assistant.ErrorReasonRunFailed.String() || failure.Message != "assistant run failed" || completions != 0 {
+				t.Fatalf("failed stream completions = %d, error = %v", completions, err)
+			}
+		} else if err != nil || completions != 1 {
+			t.Fatalf("stream after recovery completions = %d, error = %v", completions, err)
+		}
+	}
+	logged := diagnostics.String()
+	if !strings.Contains(logged, `"request_id":"`+callerID+`"`) || !strings.Contains(logged, `"panic_type":"string"`) || strings.Contains(logged, privateHandlerPanic) {
+		t.Fatalf("unexpected gRPC recovery diagnostics: %s", logged)
 	}
 }
 

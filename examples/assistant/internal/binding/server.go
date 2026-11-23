@@ -83,7 +83,7 @@ func (server server) Stop(ctx context.Context) error {
 
 func NewHTTPServer(listener net.Listener, run runHandler, probes, metrics http.Handler) rpc.Server {
 	nativeServer := kratoshttp.NewServer(kratoshttp.Listener(listener), kratoshttp.ErrorEncoder(encodeHTTPError), kratoshttp.Filter(onlyStreamRoute(false)))
-	wire.RegisterAssistantHTTPServer(nativeServer, service{run: run})
+	wire.RegisterAssistantHTTPServer(nativeServer, service{run: rpc.RecoverUnary(run)})
 	if probes != nil {
 		nativeServer.Handle("/livez", probes)
 		nativeServer.Handle("/readyz", probes)
@@ -96,14 +96,14 @@ func NewHTTPServer(listener net.Listener, run runHandler, probes, metrics http.H
 
 func NewGRPCServer(listener net.Listener, run runHandler, stream streamHandler) rpc.Server {
 	nativeServer := kratosgrpc.NewServer(kratosgrpc.Listener(listener))
-	wire.RegisterAssistantServer(nativeServer, service{run: run, stream: stream})
+	wire.RegisterAssistantServer(nativeServer, service{run: rpc.RecoverUnary(run), stream: rpc.RecoverStream(stream)})
 	return server{transport: nativeServer}
 }
 
 func NewSSEServer(listener net.Listener, stream streamHandler) rpc.Server {
 	nativeServer := kratoshttp.NewServer(kratoshttp.Listener(listener), kratoshttp.Timeout(0),
 		kratoshttp.ErrorEncoder(encodeHTTPError), kratoshttp.Filter(onlyStreamRoute(true)))
-	wire.RegisterAssistantHTTPServer(nativeServer, service{stream: stream})
+	wire.RegisterAssistantHTTPServer(nativeServer, service{stream: rpc.RecoverStream(stream)})
 	return server{transport: nativeServer}
 }
 

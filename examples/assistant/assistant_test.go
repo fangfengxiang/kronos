@@ -2,6 +2,7 @@ package assistant_test
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"io"
 	"net"
@@ -13,12 +14,16 @@ import (
 	"github.com/fangfengxiang/kronos/examples/assistant"
 	"github.com/fangfengxiang/kronos/framework/request"
 	"github.com/fangfengxiang/kronos/framework/rpc"
+	"github.com/fangfengxiang/kronos/infra/microv2"
+	"google.golang.org/protobuf/proto"
 )
 
 type assistantService struct {
 	requestStarted chan struct{}
 	requestStopped chan error
 }
+
+const privateHandlerPanic = "private handler panic value"
 
 func (service *assistantService) Run(ctx context.Context, input *assistant.RunRequest) (*assistant.RunResponse, error) {
 	switch input.GetPrompt() {
@@ -30,6 +35,8 @@ func (service *assistantService) Run(ctx context.Context, input *assistant.RunRe
 		}
 	case "fail":
 		return nil, errors.New("private provider failure")
+	case "panic":
+		panic(privateHandlerPanic)
 	case "request-id":
 		return &assistant.RunResponse{Text: request.ID(ctx)}, nil
 	case "wait":
@@ -120,6 +127,10 @@ func TestAssistantThroughKronosPublicAPI(t *testing.T) {
 			}
 			if transport.name == "HTTP" {
 				assertMalformedJSONIsSanitized(t, ctx, listener.Addr().String())
+				assertHTTPPanicReturnsFailure(t, ctx, listener.Addr().String())
+			}
+			if transport.name == "go-micro v2" {
+				assertMicroV2PanicReturnsFailure(t, ctx, listener.Addr().String())
 			}
 			_, err = client.Run(ctx, &assistant.RunRequest{})
 			var failure *rpc.Error
@@ -132,6 +143,14 @@ func TestAssistantThroughKronosPublicAPI(t *testing.T) {
 			}
 			if errors.Unwrap(err) != nil {
 				t.Errorf("public error carried a transport cause: %v", err)
+			}
+			_, err = client.Run(ctx, &assistant.RunRequest{Prompt: "panic"})
+			if !errors.As(err, &failure) || failure.Code != rpc.Internal || failure.Reason != assistant.ErrorReasonRunFailed.String() || failure.Message != "assistant run failed" {
+				t.Fatalf("recovered unary failure = %v", err)
+			}
+			response, err = client.Run(ctx, &assistant.RunRequest{Prompt: "after panic"})
+			if err != nil || response.GetText() != "after panic" {
+				t.Fatalf("unary call after recovered panic = %v, %v", response, err)
 			}
 
 			requestContext, cancelRequest := context.WithCancel(ctx)
@@ -175,7 +194,55 @@ func TestAssistantThroughKronosPublicAPI(t *testing.T) {
 
 func assertMalformedJSONIsSanitized(t *testing.T, ctx context.Context, address string) {
 	t.Helper()
-	request, err := http.NewRequestWithContext(ctx, http.MethodPost, "http://"+address+"/v1/assistant:run", strings.NewReader(`{"prompt": private_input}`))
+	response := postAssistant(t, ctx, address, `{"prompt": private_input}`)
+	defer response.Body.Close()
+	body, err := io.ReadAll(response.Body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if response.StatusCode != http.StatusBadRequest || !strings.Contains(string(body), "INVALID_REQUEST") || strings.Contains(string(body), "private_input") {
+		t.Errorf("malformed JSON returned status %d and body %s", response.StatusCode, body)
+	}
+}
+
+func assertHTTPPanicReturnsFailure(t *testing.T, ctx context.Context, address string) {
+	t.Helper()
+	response := postAssistant(t, ctx, address, `{"prompt":"panic"}`)
+	defer response.Body.Close()
+	var failure struct {
+		Reason  string `json:"reason"`
+		Message string `json:"message"`
+	}
+	if err := json.NewDecoder(response.Body).Decode(&failure); err != nil {
+		t.Fatal(err)
+	}
+	if response.StatusCode != http.StatusInternalServerError || failure.Reason != assistant.ErrorReasonRunFailed.String() || failure.Message != "assistant run failed" {
+		t.Fatalf("HTTP panic response = status %d, body %+v", response.StatusCode, failure)
+	}
+}
+
+func assertMicroV2PanicReturnsFailure(t *testing.T, ctx context.Context, address string) {
+	t.Helper()
+	client, err := microv2.NewClient("http://" + address)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer client.CloseIdleConnections()
+	payload, err := proto.Marshal(&assistant.RunRequest{Prompt: "panic"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	const service = "kronos.assistant.v1.Assistant"
+	_, err = client.Call(ctx, service, "Assistant.Run", payload)
+	var failure *microv2.Error
+	if !errors.As(err, &failure) || failure.Code != http.StatusInternalServerError || failure.Reason != assistant.ErrorReasonRunFailed.String() || failure.Message != "assistant run failed" {
+		t.Fatalf("go-micro v2 panic response = %v", err)
+	}
+}
+
+func postAssistant(t *testing.T, ctx context.Context, address, body string) *http.Response {
+	t.Helper()
+	request, err := http.NewRequestWithContext(ctx, http.MethodPost, "http://"+address+"/v1/assistant:run", strings.NewReader(body))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -185,12 +252,5 @@ func assertMalformedJSONIsSanitized(t *testing.T, ctx context.Context, address s
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer response.Body.Close()
-	body, err := io.ReadAll(response.Body)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if response.StatusCode != http.StatusBadRequest || !strings.Contains(string(body), "INVALID_REQUEST") || strings.Contains(string(body), "private_input") {
-		t.Errorf("malformed JSON returned status %d and body %s", response.StatusCode, body)
-	}
+	return response
 }

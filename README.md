@@ -18,6 +18,7 @@ Kronos 是一个面向全球应用的、协议优先、云原生、AI 原生、�
 | [Go 公开契约生成](docs/design/protobuf-go-contract.md) | 说明公开 Protobuf 类型、一元服务接口和生成验收 |
 | [原生 Go 验收](docs/design/go-verification.md) | 说明跨模块测试、业务依赖边界与协议生成检查 |
 | [一元 RPC 防腐层](docs/design/rpc-boundary.md) | 说明业务接口、Kratos 适配、期限与错误转换 |
+| [RPC 请求处理恢复](docs/design/rpc-handler-recovery.md) | 说明一元和流处理异常、稳定错误及安全诊断 |
 | [调用独立文本后端](docs/design/text-backend-rpc.md) | 说明双进程 gRPC 直连与调用验收 |
 | [Consul 服务注册与订阅](docs/design/consul-service-registration.md) | 说明健康实例发布、地址变化与注销 |
 | [动态发现文本后端](docs/design/text-backend-discovery.md) | 说明 gRPC 按服务名调用、实例轮询和撤销路由 |

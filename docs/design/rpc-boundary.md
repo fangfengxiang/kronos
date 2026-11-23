@@ -8,6 +8,8 @@
 
 参考用例的两种客户端内部将 Kratos 响应还原为 Kronos 错误。业务校验使用 `INVALID_ARGUMENT` 类别及服务定义的 `reason`。畸形 HTTP 请求体返回 `INVALID_REQUEST` 与固定文案。未知业务错误使用固定公开文案，底层诊断由服务所有者处理。客户端取消和超时使用标准 `context` 错误，调用方可用 `errors.Is` 判断。
 
+参考服务的传输绑定使用 `framework/rpc` 恢复请求处理协程中的 panic，沿已有错误映射交付结构化失败。流式入口保留已发送的增量，并按传输结束失败流。[请求处理恢复](rpc-handler-recovery.md)
+
 ## 复用与取舍
 
 - 已有实际消费者通过私有生成客户端组装请求、沿用原上下文并转换结果。Kronos 沿用这段接入方式和缺省期限规则。Kratos 的客户端超时选项会限制已有调用期限，因此在私有客户端关闭该选项，由 `rpc.UnaryClient` 补缺省值。[Kratos gRPC 客户端实现](https://github.com/go-kratos/kratos/blob/v3.0.0/transport/grpc/client.go)

@@ -57,6 +57,17 @@ func TestSSEFailureAndDisconnect(t *testing.T) {
 		t.Fatal(err)
 	}
 	server := assistant.NewSSEServer(listener, testStream(func(ctx context.Context, request *assistant.StreamRunRequest, emit func(string) error) error {
+		switch request.GetPrompt() {
+		case "panic early":
+			panic(privateHandlerPanic)
+		case "panic late":
+			if err := emit("首段"); err != nil {
+				return err
+			}
+			panic(privateHandlerPanic)
+		case "after panic":
+			return emit("已恢复")
+		}
 		return runner.Stream(ctx, request.GetPrompt(), emit)
 	}))
 	serveResult := make(chan error, 1)
@@ -96,18 +107,26 @@ func TestSSEFailureAndDisconnect(t *testing.T) {
 	}{
 		{`{"prompt":"fail early"}`, http.StatusInternalServerError, false},
 		{`{"prompt":"fail late"}`, http.StatusOK, true},
+		{`{"prompt":"panic early"}`, http.StatusInternalServerError, false},
+		{`{"prompt":"panic late"}`, http.StatusOK, true},
 	} {
 		response := post(test.body)
 		body, err := io.ReadAll(response.Body)
 		response.Body.Close()
 		bodyText := string(body)
 		if err != nil || response.StatusCode != test.status || !strings.Contains(bodyText, "ERROR_REASON_RUN_FAILED") ||
-			strings.Contains(bodyText, providerFailure.Error()) || strings.Contains(bodyText, `"completed"`) ||
+			strings.Contains(bodyText, providerFailure.Error()) || strings.Contains(bodyText, privateHandlerPanic) || strings.Contains(bodyText, `"completed"`) ||
 			strings.Contains(bodyText, "event: error") != test.streamError || strings.Contains(bodyText, "首段") != test.streamError {
 			t.Fatalf("SSE failure = %d %s (%v)", response.StatusCode, body, err)
 		}
 	}
-	response := post(`{"prompt":"wait"}`)
+	response := post(`{"prompt":"after panic"}`)
+	body, err := io.ReadAll(response.Body)
+	response.Body.Close()
+	if err != nil || response.StatusCode != http.StatusOK || !strings.Contains(string(body), "已恢复") || strings.Count(string(body), `"completed"`) != 1 {
+		t.Fatalf("SSE after recovered panic = %d %s (%v)", response.StatusCode, body, err)
+	}
+	response = post(`{"prompt":"wait"}`)
 	if firstLine, err := bufio.NewReader(response.Body).ReadString('\n'); err != nil || firstLine != "event: message\n" {
 		response.Body.Close()
 		t.Fatalf("first event = %q, %v", firstLine, err)

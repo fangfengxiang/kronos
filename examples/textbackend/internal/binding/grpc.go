@@ -34,7 +34,7 @@ type server struct{ rpc.Server }
 
 func NewServer(listener net.Listener, generate generateFunc) rpc.Server {
 	native := kratosgrpc.NewServer(kratosgrpc.Listener(listener), kratosgrpc.Timeout(0))
-	wire.RegisterTextBackendServiceServer(native, backendService{generate: generate})
+	wire.RegisterTextBackendServiceServer(native, backendService{generate: rpc.RecoverUnary(generate)})
 	return server{Server: native}
 }
 

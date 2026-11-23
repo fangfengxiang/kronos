@@ -32,6 +32,8 @@ func TestKronosAndStandardGRPCClients(t *testing.T) {
 			return nil, ctx.Err()
 		case "fail":
 			return nil, errors.New("private backend detail")
+		case "panic":
+			panic("private backend panic")
 		}
 		return &textbackend.GenerateResponse{Text: input.GetPrompt() + " " + request.ID(ctx)}, nil
 	}))
@@ -77,6 +79,18 @@ func TestKronosAndStandardGRPCClients(t *testing.T) {
 	_, err = client.Generate(ctx, &textbackend.GenerateRequest{Prompt: "fail"})
 	if !errors.As(err, &failure) || failure.Code != rpc.Internal || failure.Reason != textbackend.ErrorReason_ERROR_REASON_GENERATION_FAILED.String() || failure.Message != "text generation failed" {
 		t.Fatalf("Kronos backend failure = %v", err)
+	}
+	_, err = standard.Generate(ctx, &wire.GenerateRequest{Prompt: "panic"})
+	standardFailure = status.Convert(err)
+	details = standardFailure.Details()
+	if standardFailure.Code() != codes.Internal || standardFailure.Message() != "text generation failed" || len(details) != 1 {
+		t.Fatalf("standard recovered backend failure = %v", err)
+	}
+	if detail, ok := details[0].(*errdetails.ErrorInfo); !ok || detail.GetReason() != textbackend.ErrorReason_ERROR_REASON_GENERATION_FAILED.String() {
+		t.Fatalf("standard recovered backend error details = %v", details)
+	}
+	if result, err := standard.Generate(standardContext, input); err != nil || result.GetText() != generated.GetText() {
+		t.Fatalf("standard backend after recovered panic = %v, %v", result, err)
 	}
 	if _, err := client.Generate(t.Context(), &textbackend.GenerateRequest{Prompt: "wait"}); !errors.Is(err, context.DeadlineExceeded) {
 		t.Fatalf("Kronos default deadline = %v", err)

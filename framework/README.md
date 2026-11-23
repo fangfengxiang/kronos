@@ -2,7 +2,7 @@
 
 承载服务装配、gRPC 与 HTTP 接入、共享调用策略和应用生命周期。按已选的协议与 Kratos 传输契约连接同一个应用实现。
 
-[`framework/rpc`](rpc) 是独立模块，提供一元客户端、流的共享连接调用边界、协议选项、公开错误和装配消费的服务端接口。[一元 RPC 防腐层](../docs/design/rpc-boundary.md) · [RPC 客户端协议](../docs/design/rpc-client-protocol.md) · [标准 gRPC 流客户端](../docs/design/rpc-stream-client.md)
+[`framework/rpc`](rpc) 是独立模块，提供一元客户端、流的共享连接调用边界、协议选项、公开错误、请求恢复和装配消费的服务端接口。[一元 RPC 防腐层](../docs/design/rpc-boundary.md) · [RPC 客户端协议](../docs/design/rpc-client-protocol.md) · [标准 gRPC 流客户端](../docs/design/rpc-stream-client.md) · [请求处理恢复](../docs/design/rpc-handler-recovery.md)
 
 [`framework/request`](request) 是独立模块，提供通过标准上下文读取、生成与传播请求标识的契约。[请求元数据](../docs/design/request-metadata.md)
 

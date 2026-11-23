@@ -21,6 +21,7 @@ const microV2Endpoint = "Assistant.Run"
 var microV2Service = string(wire.File_kronos_assistant_v1_assistant_proto.Services().ByName("Assistant").FullName())
 
 func NewMicroV2Server(listener net.Listener, run runHandler) rpc.Server {
+	run = rpc.RecoverUnary(run)
 	nativeServer := kratoshttp.NewServer(kratoshttp.Listener(listener), kratoshttp.Timeout(0))
 	nativeServer.Handle("/", microv2.NewHandler(microV2Service, map[string]microv2.Unary{
 		microV2Endpoint: func(ctx context.Context, payload []byte) ([]byte, error) {
