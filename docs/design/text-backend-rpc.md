@@ -17,6 +17,8 @@ Assistant 的装配入口可以在本机或受控网络中运行独立的 TextBa
 
 固定地址客户端采用 gRPC 的 `pick_first` 策略并显式设置本地服务配置。Kratos v3.0.0 的默认选择器在独立 gRPC 包初始化时可能尚未取得全局 builder。直连采用标准策略所需的地址解析和连接逻辑。[gRPC 负载策略](https://grpc.io/docs/guides/custom-load-balancing/) · [Kratos 默认选择器注册](https://github.com/go-kratos/kratos/blob/v3.0.0/transport/grpc/balancer.go)
 
+启用进程注册时，Consul 通过标准 gRPC 健康检查维护可调用的地址集合。[Consul 服务注册与订阅](consul-service-registration.md)
+
 ## 通过条件
 
 - 生成验收核对两个服务的私有 wire 和公开契约，Assistant 现有产物字节一致。依赖检查约束两个应用的业务和装配包直接导入 Kratos 与 gRPC。

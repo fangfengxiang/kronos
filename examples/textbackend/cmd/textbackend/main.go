@@ -16,6 +16,7 @@ import (
 	"github.com/fangfengxiang/kronos/framework/app"
 	"github.com/fangfengxiang/kronos/framework/log"
 	"github.com/fangfengxiang/kronos/framework/rpc"
+	"github.com/fangfengxiang/kronos/infra/consul"
 )
 
 func main() {
@@ -33,6 +34,8 @@ func main() {
 func run(ctx context.Context, arguments []string) error {
 	flags := flag.NewFlagSet("textbackend", flag.ContinueOnError)
 	grpcAddress := flags.String("grpc", "127.0.0.1:9290", "gRPC listen address")
+	consulEndpoint := flags.String("consul", "", "Consul HTTP(S) agent URL (empty disables registration)")
+	advertiseAddress := flags.String("advertise-grpc", "", "advertised gRPC host:port (defaults to the bound address)")
 	if err := flags.Parse(arguments); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
 			return nil
@@ -42,11 +45,30 @@ func run(ctx context.Context, arguments []string) error {
 	if flags.NArg() != 0 {
 		return errors.New("unexpected positional arguments")
 	}
+	var registry *consul.Registry
+	if *consulEndpoint != "" {
+		var err error
+		registry, err = consul.New(*consulEndpoint)
+		if err != nil {
+			return err
+		}
+		defer registry.Close()
+	} else if *advertiseAddress != "" {
+		return errors.New("advertise-grpc requires a Consul agent URL")
+	}
 	application, err := app.New(app.Config{ShutdownTimeout: 5 * time.Second}, app.Binding{
 		Name:    "gRPC",
 		Address: *grpcAddress,
 		Build: func(listener net.Listener) (app.Server, error) {
-			return textbackend.NewGRPCServer(listener, textService{})
+			server, err := textbackend.NewGRPCServer(listener, textService{})
+			if err != nil || registry == nil {
+				return server, err
+			}
+			address := *advertiseAddress
+			if address == "" {
+				address = listener.Addr().String()
+			}
+			return registerBackend(ctx, server, registry, address)
 		},
 	})
 	if err != nil {

@@ -8,6 +8,8 @@
 
 [`infra/configfile`](configfile) 是独立配置源模块，提供类型化的本地 JSON 快照读取，由消费入口定义配置字段和覆盖规则。[启动配置文件](../docs/design/config-file.md)
 
+[`infra/consul`](consul) 提供 gRPC 实例注册、注销、健康地址查询和可取消的订阅。[Consul 服务注册与订阅](../docs/design/consul-service-registration.md)
+
 [`infra/microv2`](microv2) 是独立兼容模块，提供 go-micro v2 的入站一元 Protobuf 适配和出站 `proto-rpc` 直连。[兼容监听设计](../docs/design/additional-listeners.md) · [RPC 客户端协议](../docs/design/rpc-client-protocol.md)
 
 [`infra/oteltrace`](oteltrace) 复用 Kratos OTel tracer 与 SDK，通过标准上下文记录请求 span 并向 Collector 导出。[请求链路追踪](../docs/design/request-tracing.md)
