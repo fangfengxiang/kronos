@@ -11,3 +11,9 @@ plugins:
     opt:
       - paths=source_relative
       - omitempty=true
+  - local: ["go", "-C", "platform/protogen", "run", "."]
+    out: .
+    strategy: all
+    opt:
+      - module=github.com/fangfengxiang/kronos
+      - api_import=github.com/fangfengxiang/kronos/examples/assistant

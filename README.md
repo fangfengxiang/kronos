@@ -15,6 +15,7 @@ Kronos 是一个面向全球应用的、协议优先、云原生、AI 原生、�
 | [架构概览](docs/architecture/overview.md) | 说明框架、传输、平台和业务的职责与依赖方向 |
 | [首版落地设计](docs/design/first-vertical-slice.md) | 界定参考应用范围、公开行为、实施顺序和验收 |
 | [Assistant v1 协议](docs/design/assistant-protocol.md) | 约定公开入口、流终态、错误标识与生成验收 |
+| [Go 公开契约生成](docs/design/protobuf-go-contract.md) | 说明公开 Protobuf 类型、一元服务接口和生成验收 |
 | [原生 Go 验收](docs/design/go-verification.md) | 说明跨模块测试、业务依赖边界与协议生成检查 |
 | [一元 RPC 防腐层](docs/design/rpc-boundary.md) | 说明业务接口、Kratos 适配、期限与错误转换 |
 | [RPC 客户端协议选择](docs/design/rpc-client-protocol.md) | 说明标准 gRPC 与 go-micro v2 的调用选项和互通验收 |

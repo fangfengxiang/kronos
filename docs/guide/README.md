@@ -33,7 +33,7 @@ go run ./platform/verify proto
 go test ./examples/assistant/...
 ```
 
-修改 [Assistant Proto](../../examples/assistant/api/kronos/assistant/v1/assistant.proto) 后重新生成，提交协议与 `examples/assistant/internal/wire` 的 Go 产物。检查命令校验格式、lint 和重新生成的内容，CI 执行同一入口。[Assistant v1 协议设计](../design/assistant-protocol.md)
+修改 [Assistant Proto](../../examples/assistant/api/kronos/assistant/v1/assistant.proto) 后重新生成，提交协议、`examples/assistant/internal/wire` 内的私有绑定及公开契约 `contract.kronos.pb.go`。检查命令校验格式、lint 和重新生成的内容，CI 执行同一入口。[Assistant v1 协议设计](../design/assistant-protocol.md) · [公开契约生成](../design/protobuf-go-contract.md)
 
 Assistant 的业务实现提供 `Service.Run`。调用方通过 `Run` 发起请求，由实例所有者执行 `Close`。HTTP 客户端使用 `NewHTTPClient`。RPC 客户端使用 `NewRPCClient`，默认走标准 gRPC。通过 `rpc.WithProtocol` 可选用 go-micro v2。[集成用例](../../examples/assistant/assistant_test.go) · [RPC 客户端协议](../design/rpc-client-protocol.md)
 

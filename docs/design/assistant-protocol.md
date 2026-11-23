@@ -34,7 +34,7 @@ HTTP JSON 客户端和 gRPC 客户端从同一份版本化 Protobuf 获取方法
 - 用生成的消息验证两类事件可通过 Protobuf 编码往返，并锁定公开错误标识及其编号。用可编译的生成客户端和注册接口验证三类 Go 产物。
 - 将生成产物写入临时目录，与仓库逐文件比较。CI 使用同一命令。双入口错误映射、流的取消与终止顺序在真实监听的应用切面验收。
 
-当前从仓库根目录运行 `go run ./platform/verify proto`，需要更新协议产物时运行 `go run ./platform/verify generate`。[原生 Go 验收](go-verification.md)
+当前从仓库根目录运行 `go run ./platform/verify proto`，需要更新协议产物时运行 `go run ./platform/verify generate`。同一生成命令提供公开消息和服务接口以及私有传输绑定。[原生 Go 验收](go-verification.md) · [公开契约生成](protobuf-go-contract.md)
 
 ## 实测记录
 

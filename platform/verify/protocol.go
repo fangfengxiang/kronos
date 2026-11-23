@@ -12,9 +12,10 @@ import (
 )
 
 const (
-	bufVersion    = "1.70.0"
-	protoTemplate = "tools/proto/buf.gen.yaml"
-	generatedWire = "examples/assistant/internal/wire"
+	bufVersion        = "1.70.0"
+	protoTemplate     = "tools/proto/buf.gen.yaml"
+	generatedWire     = "examples/assistant/internal/wire"
+	generatedContract = "examples/assistant/contract.kronos.pb.go"
 )
 
 func checkBufVersion(ctx context.Context, repository string) error {
@@ -47,7 +48,10 @@ func checkProtocol(ctx context.Context, repository string) error {
 	if err := runCommand(ctx, repository, "buf", "generate", "--template", protoTemplate, "--output", outputDirectory); err != nil {
 		return err
 	}
-	return compareGeneratedFiles(os.DirFS(filepath.Join(outputDirectory, generatedWire)), os.DirFS(filepath.Join(repository, generatedWire)))
+	if err := compareGeneratedFiles(os.DirFS(filepath.Join(outputDirectory, generatedWire)), os.DirFS(filepath.Join(repository, generatedWire))); err != nil {
+		return err
+	}
+	return compareGeneratedFile(os.DirFS(outputDirectory), os.DirFS(repository), generatedContract)
 }
 
 func compareGeneratedFiles(regenerated, committed fs.FS) error {
@@ -63,17 +67,24 @@ func compareGeneratedFiles(regenerated, committed fs.FS) error {
 		return fmt.Errorf("generated file list differs: want %v, found %v", expected, actual)
 	}
 	for _, path := range expected {
-		want, err := fs.ReadFile(regenerated, path)
-		if err != nil {
+		if err := compareGeneratedFile(regenerated, committed, path); err != nil {
 			return err
 		}
-		got, err := fs.ReadFile(committed, path)
-		if err != nil {
-			return err
-		}
-		if !bytes.Equal(got, want) {
-			return fmt.Errorf("generated file %s does not match Buf output", path)
-		}
+	}
+	return nil
+}
+
+func compareGeneratedFile(regenerated, committed fs.FS, path string) error {
+	want, err := fs.ReadFile(regenerated, path)
+	if err != nil {
+		return fmt.Errorf("read regenerated file: %w", err)
+	}
+	got, err := fs.ReadFile(committed, path)
+	if err != nil {
+		return fmt.Errorf("read committed generated file: %w", err)
+	}
+	if !bytes.Equal(got, want) {
+		return fmt.Errorf("generated file %s does not match Buf output", path)
 	}
 	return nil
 }

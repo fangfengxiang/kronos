@@ -9,27 +9,16 @@ import (
 	"time"
 
 	"github.com/fangfengxiang/kronos/examples/assistant/internal/binding"
-	wire "github.com/fangfengxiang/kronos/examples/assistant/internal/wire/kronos/assistant/v1"
 	"github.com/fangfengxiang/kronos/framework/rpc"
 )
 
-type (
-	RunRequest        = wire.RunRequest
-	RunResponse       = wire.RunResponse
-	ErrorReason       = wire.ErrorReason
-	StreamRunRequest  = wire.StreamRunRequest
-	StreamRunResponse = wire.StreamRunResponse
-)
-
 const (
-	ErrorReasonInvalidPrompt = wire.ErrorReason_ERROR_REASON_INVALID_PROMPT
-	ErrorReasonRunFailed     = wire.ErrorReason_ERROR_REASON_RUN_FAILED
+	ErrorReasonInvalidPrompt = ErrorReason_ERROR_REASON_INVALID_PROMPT
+	ErrorReasonRunFailed     = ErrorReason_ERROR_REASON_RUN_FAILED
 )
 
 // Service implements the business operation shared by the unary transports.
-type Service interface {
-	Run(context.Context, *RunRequest) (*RunResponse, error)
-}
+type Service interface{ AssistantUnaryService }
 
 // StreamService produces ordered text deltas. Call emit sequentially while
 // StreamRun is active. A nil error completes the stream.
