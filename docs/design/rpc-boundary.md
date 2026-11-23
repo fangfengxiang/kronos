@@ -24,6 +24,6 @@
 
 ## 实测与复盘
 
-- Go 1.25.0 下运行 `bash scripts/test-modules.sh`，根模块和三个封装模块分别通过竞态测试。`bash scripts/check-layer-deps.sh`、`bash tools/proto/generate.sh --check`、`GOWORK=off go vet ./...` 与 `GOWORK=off go mod verify` 通过。
+- 首次验收使用 Go 1.25.0，根模块和三个封装模块分别通过竞态测试。分层检查、协议生成一致性、`GOWORK=off go vet ./...` 与 `GOWORK=off go mod verify` 通过。当前使用仓库的原生 Go 验收入口。[验收命令](go-verification.md)
 - 在临时独立模块中使用工作树替换，并关闭工作区，运行 `go test -race -count=1 ./...`。调用样例仅导入标准库、Assistant 公开包和 `framework/rpc`，真实双入口通过。验证了相同结果、稳定错误标识、未知错误和 HTTP 解码失败的安全文案，以及取消传播。
 - 客户端期限由包级测试精确核对，连接关闭由并发测试验证。保留现有生成绑定后，手写适配只承担公开接口与传输之间的转换。后续先用进程装配和流式调用扩展验收，再决定生成接线的形态。

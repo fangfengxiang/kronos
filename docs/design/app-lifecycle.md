@@ -28,6 +28,6 @@ Assistant 命令在创建应用组件前读取并合并可选的启动配置，�
 
 ## 实测与复盘
 
-- Go 1.25.0 下，`bash scripts/test-modules.sh`、`bash scripts/check-layer-deps.sh`、`bash tools/proto/generate.sh --check` 通过。根模块及 `framework/app` 的 `GOWORK=off go vet ./...` 通过。
+- 首次验收使用 Go 1.25.0，全仓测试、分层检查和协议生成一致性通过。根模块及 `framework/app` 的 `GOWORK=off go vet ./...` 通过。当前使用仓库的原生 Go 验收入口。[验收命令](go-verification.md)
 - 模块测试验证第二个端口被占用后的重绑、已构造服务的失败回滚、错误聚合和探针状态。真实 HTTP、gRPC 的在途请求完成与超时取消用例在竞态检测下重复八次通过。
 - Assistant 子进程测试构建并启动命令，探针就绪后通过四个入口发起请求，发送 `SIGTERM` 后观测到退出码为零，四个端口均可重新绑定。容器、注册发现与模型接入由各自的纵切验收。

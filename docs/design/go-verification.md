@@ -13,6 +13,8 @@
 
 任一检查失败时返回非零退出码，输出定位失败的模块、导入或生成文件。参考服务的私有绑定和生成件使用 Kratos 与 gRPC，业务和命令代码通过 Kronos 与服务协议接入。
 
+go-micro v2 的双向互通单独运行 `GOWORK=off go test -tags=interop -count=1 ./test/interop/microv2`。Assistant 的容器端到端验收运行 `GOWORK=off go test -tags=e2e -count=1 ./test/e2e/assistant`。两项测试均有自己的 Go 夹具和断言。[旧协议互通](go-micro-v2-interop.md) · [Compose 验收](assistant-compose.md)
+
 ## 边界与取舍
 
 - 参考服务将协议生成集中在固定入口，真实调用另用 Go `testing` 验证。沿用固定接线与原生测试。模块枚举和导入分析直接使用 `go work edit -json` 和 `go list -json`，Go 测试使用 `go test`。[Go 工作区命令](https://go.dev/ref/mod#go-work-edit) · [Go 包列表命令](https://pkg.go.dev/cmd/go#hdr-List_packages_or_modules) · [可执行示例](https://go.dev/blog/examples)

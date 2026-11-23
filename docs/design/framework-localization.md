@@ -24,5 +24,5 @@ Assistant 的调用方可以选择错误文案语言。HTTP 和 SSE 从 `Accept-
 
 ## 实测与复盘
 
-- Go 1.25.0、macOS arm64 下，`bash scripts/test-modules.sh`、`bash scripts/check-layer-deps.sh` 和 `bash tools/proto/generate.sh --check` 通过。`GOWORK=off go vet ./...`、独立模块的 `go vet ./...` 与 `go mod verify` 通过。子进程测试核对 HTTP 与 gRPC 一元、gRPC 流及 SSE 的本地化错误。[进程测试](../../examples/assistant/cmd/assistant/main_test.go)
-- `framework/localization` 复用 `core/locale` 已采用的 `golang.org/x/text v0.40.0`，参考应用依赖也对齐该版本。Ubuntu 的 `Go checks` 在 `a2ac28d` 通过 `bash scripts/test-modules.sh`，覆盖语言协商独立模块与 Assistant 本地化子进程测试。协议生成和分层检查同时通过。[Linux CI](https://github.com/fangfengxiang/kronos/actions/runs/45097486370)
+- Go 1.25.0、macOS arm64 的首次验收通过全仓测试、分层与生成检查。`GOWORK=off go vet ./...`、独立模块的 `go vet ./...` 与 `go mod verify` 通过。子进程测试核对 HTTP 与 gRPC 一元、gRPC 流及 SSE 的本地化错误。[进程测试](../../examples/assistant/cmd/assistant/main_test.go) · [当前 Go 验收入口](go-verification.md)
+- `framework/localization` 复用 `core/locale` 已采用的 `golang.org/x/text v0.40.0`，参考应用依赖也对齐该版本。Ubuntu 的 `Go checks` 在 `a2ac28d` 通过全仓测试，覆盖语言协商独立模块与 Assistant 本地化子进程测试。协议生成和分层检查同时通过。[Linux CI](https://github.com/fangfengxiang/kronos/actions/runs/45097486370)

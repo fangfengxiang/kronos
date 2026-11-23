@@ -25,5 +25,5 @@
 ## 实测与复盘
 
 - 在 Ubuntu 24.04 的 Linux arm64 容器使用 Go 1.25.0，关闭工作区后执行 `go build -o /tmp/kronos-assistant ./examples/assistant/cmd/assistant`、`go -C infra/blades test -count=10 ./...` 和 `go test -count=1 ./examples/assistant/...`，均通过。Assistant 测试覆盖真实子进程和回环连接。[子进程测试](../../examples/assistant/cmd/assistant/main_test.go)
-- macOS arm64 下通过 `bash scripts/test-modules.sh`、`bash scripts/check-layer-deps.sh`、`bash tools/proto/generate.sh --check`、根模块和适配模块的 `GOWORK=off go vet ./...`，以及适配模块的 `go mod verify`。SSE 集成测试通过真实 Blades Runner 验证首帧前失败、流中异常、公开错误标识和模型收到断开取消。[SSE 测试](../../examples/assistant/sse_test.go)
+- macOS arm64 的首次验收覆盖全仓测试、分层与生成检查、根模块和适配模块的 `GOWORK=off go vet ./...`，以及适配模块的 `go mod verify`。SSE 集成测试通过真实 Blades Runner 验证首帧前失败、流中异常、公开错误标识和模型收到断开取消。[SSE 测试](../../examples/assistant/sse_test.go) · [当前 Go 验收入口](go-verification.md)
 - 使用 `GOWORK=off GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go -C infra/blades test -c` 生成 Windows 测试二进制。此项记录为交叉构建。

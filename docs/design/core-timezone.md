@@ -26,7 +26,9 @@
 
 ## 实测与复盘
 
-在 Go 1.25.0、macOS arm64 下，从模块目录分别以 `TZ=Pacific/Honolulu` 和 `TZ=Asia/Tokyo` 运行 `GOWORK=off go test -race -count=1 ./...`。两次结果一致。`go vet ./...`、`go mod tidy -diff`、仓库的 `bash scripts/test-modules.sh` 和 `bash scripts/check-layer-deps.sh` 均通过。[包测试与日报示例](../../core/timezone/timezone_test.go)
+在 Go 1.25.0、macOS arm64 下，从模块目录分别以 `TZ=Pacific/Honolulu` 和 `TZ=Asia/Tokyo` 运行 `GOWORK=off go test -race -count=1 ./...`。两次结果一致。首次验收的 `go vet ./...`、`go mod tidy -diff`、全仓测试和分层检查均通过。[包测试与日报示例](../../core/timezone/timezone_test.go)
+
+当前从仓库根目录运行 `go run ./platform/verify test` 和 `go run ./platform/verify deps`。[原生 Go 验收](go-verification.md)
 
 独立 Go 消费者以 `GOOS=wasip1 GOARCH=wasm` 分别运行 `go build` 和 `go build -tags timetzdata`，在无预开放目录的 Node WASI 中执行。缺少时区数据时获得 `ErrInvalidZone`。内嵌构建将 `2025-01-02T01:00:00Z` 转为洛杉矶日报日期 `2025-01-01`。
 

@@ -23,10 +23,10 @@ Assistant 应用同时支持现有 gRPC 和 HTTP，以及按地址显式启用�
 
 ## 实测与复盘
 
-| 命令 | Go 1.25.0 实测结果 |
+| 首次验收项目 | Go 1.25.0 实测结果 |
 | --- | --- |
-| `bash scripts/test-modules.sh` | 各模块竞态测试通过。Assistant 子进程四类监听均可调用，`SIGTERM` 后以状态码 0 退出，四个端口均可重新绑定。SSE 覆盖请求体、失败时机和断连取消。 |
-| `bash test/interop/microv2/verify.sh "$MICRO_V2_ADDRESS"` | 两版官方客户端通过默认连接池连接同一个四端口 Assistant 进程。每版均通过 `application/protobuf` 和 `application/proto-rpc` 验证 Unicode 响应及 `ERROR_REASON_INVALID_PROMPT`。实测兼容地址由回环测试分配。 |
-| `bash scripts/check-layer-deps.sh`、`bash tools/proto/generate.sh --check`、`GOWORK=off go vet ./...`、`GOWORK=off go mod verify` | 跨层导入、协议生成一致性、静态检查和模块完整性检查通过。 |
+| 模块竞态和进程测试 | 各模块竞态测试通过。Assistant 子进程四类监听均可调用，`SIGTERM` 后以状态码 0 退出，四个端口均可重新绑定。SSE 覆盖请求体、失败时机和断连取消。 |
+| 两版 go-micro v2 互通 | 两版官方客户端通过默认连接池连接同一个四端口 Assistant 进程。每版均通过 `application/protobuf` 和 `application/proto-rpc` 验证 Unicode 响应及 `ERROR_REASON_INVALID_PROMPT`。实测兼容地址由回环测试分配。 |
+| 分层和生成检查、`GOWORK=off go vet ./...`、`GOWORK=off go mod verify` | 跨层导入、协议生成一致性、静态检查和模块完整性检查通过。 |
 
 互通夹具保留两版客户端源码，单独提升 `golang.org/x/net` 以适配现代 Go 构建，并从 v2.0.0 的临时模块清单移除客户端未引用的 v1 模块。该 v1 模块依赖已下线的代码生成工具。当前使用 `go test -tags=interop -count=1 ./test/interop/microv2` 验证两个方向。[原生 Go 互通验收](go-micro-v2-interop.md)
