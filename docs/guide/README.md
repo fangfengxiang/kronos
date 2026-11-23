@@ -17,19 +17,19 @@ Kronos 的 Core 原语已可通过 Go 包使用。Assistant v1 提供一元 HTTP
 从仓库根目录调用与 CI 相同的入口。
 
 ```sh
-bash scripts/check-layer-deps.sh
-bash scripts/test-modules.sh
+go run ./platform/verify deps
+go run ./platform/verify test
 ```
 
-这两个脚本读取 `go.work` 内登记的模块，在各自目录关闭工作区运行检查。新增封装模块时用 `go work use ./模块目录` 登记。[模块边界](../adr/0004-layer-and-module-boundaries.md)
+入口读取 `go.work` 内登记的模块，在各自目录关闭工作区执行检查和原生 Go 测试。新增封装模块时用 `go work use ./模块目录` 登记。[Go 验收入口](../design/go-verification.md) · [模块边界](../adr/0004-layer-and-module-boundaries.md)
 
 ## 生成 Assistant 协议
 
 准备 Go 1.25.0 或更高版本，并将 [Buf 1.70.0](https://github.com/bufbuild/buf/releases/tag/v1.70.0) 放入 `PATH`。首次生成需要访问公开的 Go 模块代理和 Buf Schema Registry。生成命令从仓库根目录执行。
 
 ```sh
-bash tools/proto/generate.sh
-bash tools/proto/generate.sh --check
+go run ./platform/verify generate
+go run ./platform/verify proto
 go test ./examples/assistant/...
 ```
 
@@ -109,7 +109,7 @@ SSE 的请求体使用 JSON。调用示例的 go-micro v2 服务名是 `kronos.a
 go run ./examples/assistant/cmd/assistant -config ./assistant.json -http 127.0.0.1:18080
 ```
 
-显式参数覆盖文件，文件缺失的键沿用默认值。文件不存在、出现未知键或生效值无效时，入口返回启动错误。[可用配置项和检查规则](../design/config-file.md)
+显式参数覆盖文件，文件缺失的键沿用默认值。文件不存在、出现未知键或生效值无效时，入口返回启动错误。[可用配置项和检查规则](../design/config-file.md) · [可执行的 Go 示例](../../infra/configfile/example_test.go)
 
 ### 优雅重载
 

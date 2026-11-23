@@ -36,6 +36,6 @@ Kronos 面向全球应用，沿同一份 Protobuf 契约交付 gRPC、可选 HTT
 
 ## 仓库职责
 
-`docs/` 记录架构、设计、ADR 和框架使用文档。`examples/` 承载可运行参考应用。`tools/proto/` 固定生成命令及工具版本。`test/integration/` 和 `test/e2e/` 分别验证真实传输和容器交付。`.agents/skills/kronos-framework/` 预留给随参考应用交付的框架操作 Skill。
+`docs/` 记录架构、设计、ADR 和框架使用文档。`examples/` 承载可运行参考应用。`tools/proto/` 固定生成模板和工具版本，`platform/verify` 提供生成与原生 Go 验收入口。`test/integration/` 和 `test/e2e/` 分别验证真实传输和容器交付。`.agents/skills/kronos-framework/` 预留给随参考应用交付的框架操作 Skill。
 
 具体决定由 [ADR 索引](../adr/README.md) 追踪。

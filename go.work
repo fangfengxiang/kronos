@@ -13,4 +13,5 @@ use (
 	./infra/blades
 	./infra/configfile
 	./infra/microv2
+	./platform/verify
 )
