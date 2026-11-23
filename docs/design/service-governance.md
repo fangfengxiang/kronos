@@ -21,6 +21,12 @@
 - 发现失败向调用方报告。客户端在调用期限内取得或更新实例快照，复用连接，并绕开最近失败的地址。确定允许重试的调用在剩余期限内最多换一个实例。Proto 的幂等标记界定可重放的业务请求。
 - 运维要能观察发布和续约失败、发现失败、调用结果、耗时以及在途数量。故障验收同时观察注册变化、请求结果与资源收尾。[Acuity 可靠性验收](https://github.com/fangfengxiang/acuity/blob/main/SKILL.md) · [Greatsword 生命周期](https://github.com/fangfengxiang/greatsword/blob/main/skills/greatsword/references/invariant-lifecycle.md)
 
+### 注册中心断连与进程崩溃验收
+
+在 Linux 上启动真实 Order 进程和隔离 etcd。用测试进程持有的回环 TCP 中继中断 Order 和一组客户端到 etcd 的连接。直连 etcd 的观察端验证两个地址随租约消失，发现受阻的并发调用在各自预算内返回，已知地址的 RPC 仍可完成。恢复连接后核对续约失败、丢失租约及重新发布的事件，并用经过中继的客户端按服务名完成两种协议的业务调用。
+
+用另一组服务名启动独立 Order 进程。确认发现调用后强制结束该测试进程，观察原记录保留到租约过期，然后核对两个地址均被删除、重新发现返回 `NO_INSTANCES`。测试中继、连接和子进程均由 Go 测试清理。[etcd 租约行为](https://etcd.io/docs/v3.6/dev-guide/interacting_v3/#grant-leases)
+
 ## etcd 适配契约
 
 `etcd.New(endpoints ...string)` 使用显式的 TCP 端点创建独立客户端，返回初始化错误。调用方拥有客户端并调用 `Close`。平台装配用 `Publish(ctx, serviceName, grpcAddress, microRPCAddress)` 注册一代实例，至少有一个通告地址。返回值是有期限、可重复调用的摘流函数。启动上下文约束首轮发布，成功发布后的续约随注册实例和客户端的生命周期运行。调度使用 15 秒租约、每 5 秒尝试续约和每次 2 秒的 etcd 操作预算。
@@ -58,3 +64,4 @@
 - `framework/app.RunWithReadyHook` 已通过 Linux 回环发布和有界关停测试。HTTP 请求证实发布时监听已经可用，撤销与传输共享一个截止时间，部分失败后释放端口。Order 的真实进程摘流进入后续集成验收。[生命周期实测](app-lifecycle.md#实测与复盘)
 - Order 进程的 21 行装配已运行。真实 etcd 上的原生 gRPC 与两版官方旧客户端通过服务名路径对照成功，`SIGTERM` 后两个地址注销。[统一服务端与实测](unary-service-api.md#实测)
 - Kronos 客户端通过真实 etcd 调用两版官方旧服务端，并在两种协议上验证多实例选择与绕行。生成的 Order 客户端及命令行入口使用同一公开 API。[发现客户端与实测](discovered-rpc-client.md#实测)
+- 真实 etcd 的隔离网络验收两个故障场景。Order 进程与 etcd 断连时，12 个并发发现调用在 350 毫秒的各自预算到期时返回，直连业务仍可调用。两个地址随租约过期。恢复连接后，日志记录续约失败、租约丢失、重新发布和恢复，客户端通过原服务名再次取得两种协议的订单响应。另一个 Order 进程被强制结束后，两种地址约 16 秒内消失，两种客户端均返回 `NO_INSTANCES`。[断连和崩溃测试](../../test/interop/microv2/resilience_test.go)

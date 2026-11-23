@@ -133,6 +133,7 @@ type orderProcess struct {
 	command *exec.Cmd
 	done    chan struct{}
 	err     error
+	logPath string
 }
 
 func startOrderProcess(t *testing.T, endpoint, serviceName string) *orderProcess {
@@ -155,6 +156,7 @@ func startOrderProcess(t *testing.T, endpoint, serviceName string) *orderProcess
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = output.Close() })
+	process.logPath = output.Name()
 	process.command.Stdout, process.command.Stderr = output, output
 	if err := process.command.Start(); err != nil {
 		t.Fatal(err)

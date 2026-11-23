@@ -112,10 +112,15 @@ func runOrderReplica(t *testing.T, registry *etcd.Registry, name string, impleme
 	return stop
 }
 
-func waitForInstances(t *testing.T, registry *etcd.Registry, name string, protocol kronos.WireProtocol, count int) {
+func waitForInstances(t *testing.T, registry *etcd.Registry, name string, protocol kronos.WireProtocol, count int) []string {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 	defer cancel()
+	return waitForInstanceCount(t, ctx, registry, name, protocol, count)
+}
+
+func waitForInstanceCount(t *testing.T, ctx context.Context, registry *etcd.Registry, name string, protocol kronos.WireProtocol, count int) []string {
+	t.Helper()
 	check := time.NewTicker(25 * time.Millisecond)
 	defer check.Stop()
 	for {
@@ -124,7 +129,7 @@ func waitForInstances(t *testing.T, registry *etcd.Registry, name string, protoc
 			t.Fatal(err)
 		}
 		if len(addresses) == count {
-			return
+			return addresses
 		}
 		select {
 		case <-check.C:
