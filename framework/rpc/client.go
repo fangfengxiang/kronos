@@ -45,18 +45,33 @@ func NewUnaryClient[Request, Response any](
 // Call preserves the caller's deadline. It applies a configured default only
 // when the caller supplied none.
 func (client *UnaryClient[Request, Response]) Call(ctx context.Context, request *Request) (*Response, error) {
+	var response *Response
+	err := client.Do(ctx, func(callContext context.Context) error {
+		var err error
+		response, err = client.invoke(callContext, request)
+		return err
+	})
+	return response, err
+}
+
+// Do runs an operation on the same connection with the client's deadline and
+// close checks. A default deadline applies only when ctx has no deadline.
+func (client *UnaryClient[Request, Response]) Do(ctx context.Context, operation func(context.Context) error) error {
 	if client.closed.Load() {
-		return nil, ErrClientClosed
+		return ErrClientClosed
 	}
 	if err := ctx.Err(); err != nil {
-		return nil, err
+		return err
+	}
+	if operation == nil {
+		return errors.New("rpc client requires an operation")
 	}
 	if _, hasDeadline := ctx.Deadline(); !hasDeadline && client.defaultTimeout > 0 {
 		var cancel context.CancelFunc
 		ctx, cancel = context.WithTimeout(ctx, client.defaultTimeout)
 		defer cancel()
 	}
-	return client.invoke(ctx, request)
+	return operation(ctx)
 }
 
 // Close releases the connection once and returns the same result on later calls.

@@ -19,5 +19,7 @@
 
 ## 实测与复盘
 
+标准 gRPC 客户端也通过 `Client.StreamRun` 接收服务端流，共用连接和期限。HTTP 与 go-micro v2 一元客户端的流调用返回 `rpc.ErrStreamingUnsupported`。[流式调用契约](rpc-stream-client.md)
+
 - Go 1.25.0 下 `bash scripts/test-modules.sh` 通过。真实监听验证默认标准 gRPC、显式标准 gRPC 和旧协议选项。取消传播、关闭语义、错误转换与旧协议边界分别进入包级和参考应用测试。
 - 当前的 `go test -tags=interop -count=1 ./test/interop/microv2` 与官方 `v2.0.0`、`v2.9.1` 双向验证 Unicode 响应和稳定业务错误。旧服务端的错误帧零序号由匹配的 `Micro-Id` 补足。旧 SDK 用于互通夹具，依赖清单在临时模块中适配 Go 1.25。[原生 Go 互通验收](go-micro-v2-interop.md)

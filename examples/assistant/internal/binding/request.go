@@ -8,6 +8,7 @@ import (
 	"github.com/fangfengxiang/kronos/framework/request"
 	"github.com/go-kratos/kratos/v3/middleware"
 	"github.com/go-kratos/kratos/v3/transport"
+	"google.golang.org/grpc/metadata"
 )
 
 func withIncomingRequest(ctx context.Context) context.Context {
@@ -23,14 +24,27 @@ func withIncomingRequest(ctx context.Context) context.Context {
 func propagateOutgoingRequest(next middleware.Handler) middleware.Handler {
 	return func(ctx context.Context, payload any) (any, error) {
 		if clientTransport, ok := transport.FromClientContext(ctx); ok {
-			header := clientTransport.RequestHeader()
-			if id := request.ID(ctx); id != "" {
-				header.Set(request.IDHeader, id)
-			}
-			if preferences := localization.AcceptLanguage(ctx); len(preferences) != 0 {
-				header.Set(localization.AcceptLanguageHeader, strings.Join(preferences, ","))
-			}
+			setOutgoingRequest(ctx, clientTransport.RequestHeader().Set)
 		}
 		return next(ctx, payload)
+	}
+}
+
+func withOutgoingStreamRequest(ctx context.Context) context.Context {
+	// Kratos stream middleware runs after gRPC creates the stream.
+	outgoing, _ := metadata.FromOutgoingContext(ctx)
+	if outgoing == nil {
+		outgoing = make(metadata.MD)
+	}
+	setOutgoingRequest(ctx, func(key, value string) { outgoing.Set(key, value) })
+	return metadata.NewOutgoingContext(ctx, outgoing)
+}
+
+func setOutgoingRequest(ctx context.Context, set func(string, string)) {
+	if id := request.ID(ctx); id != "" {
+		set(request.IDHeader, id)
+	}
+	if preferences := localization.AcceptLanguage(ctx); len(preferences) != 0 {
+		set(localization.AcceptLanguageHeader, strings.Join(preferences, ","))
 	}
 }

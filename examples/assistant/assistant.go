@@ -3,6 +3,7 @@ package assistant
 
 import (
 	"context"
+	"errors"
 	"net"
 	"net/http"
 	"time"
@@ -13,10 +14,11 @@ import (
 )
 
 type (
-	RunRequest       = wire.RunRequest
-	RunResponse      = wire.RunResponse
-	ErrorReason      = wire.ErrorReason
-	StreamRunRequest = wire.StreamRunRequest
+	RunRequest        = wire.RunRequest
+	RunResponse       = wire.RunResponse
+	ErrorReason       = wire.ErrorReason
+	StreamRunRequest  = wire.StreamRunRequest
+	StreamRunResponse = wire.StreamRunResponse
 )
 
 const (
@@ -67,7 +69,8 @@ func NewMicroV2Server(listener net.Listener, service Service) rpc.Server {
 
 // Client invokes the reference service through its selected transport.
 type Client struct {
-	unary *rpc.UnaryClient[RunRequest, RunResponse]
+	unary  *rpc.UnaryClient[RunRequest, RunResponse]
+	stream func(context.Context, *StreamRunRequest, func(*StreamRunResponse) error) error
 }
 
 // NewHTTPClient connects to an HTTP endpoint. DefaultTimeout applies to calls
@@ -83,11 +86,11 @@ func NewHTTPClient(ctx context.Context, endpoint string, defaultTimeout time.Dur
 // NewGRPCClient connects to a plaintext gRPC endpoint. DefaultTimeout applies
 // to calls whose contexts have no deadline.
 func NewGRPCClient(ctx context.Context, endpoint string, defaultTimeout time.Duration) (*Client, error) {
-	unary, err := binding.NewGRPCClient(ctx, endpoint, defaultTimeout)
+	unary, stream, err := binding.NewGRPCClient(ctx, endpoint, defaultTimeout)
 	if err != nil {
 		return nil, err
 	}
-	return &Client{unary: unary}, nil
+	return &Client{unary: unary, stream: stream}, nil
 }
 
 // NewRPCClient connects over standard gRPC by default. Use rpc.WithProtocol to
@@ -110,6 +113,21 @@ func NewRPCClient(ctx context.Context, endpoint string, defaultTimeout time.Dura
 // Run invokes the reference service's unary operation.
 func (client *Client) Run(ctx context.Context, request *RunRequest) (*RunResponse, error) {
 	return client.unary.Call(ctx, request)
+}
+
+// StreamRun delivers standard gRPC events in order. A completed event is
+// delivered after the peer closes the stream successfully. An error from
+// receive cancels the stream and is returned unchanged.
+func (client *Client) StreamRun(ctx context.Context, request *StreamRunRequest, receive func(*StreamRunResponse) error) error {
+	if client.stream == nil {
+		return rpc.ErrStreamingUnsupported
+	}
+	if receive == nil {
+		return errors.New("assistant stream requires a receive function")
+	}
+	return client.unary.Do(ctx, func(callContext context.Context) error {
+		return client.stream(callContext, request, receive)
+	})
 }
 
 // Close releases the client's transport resources.

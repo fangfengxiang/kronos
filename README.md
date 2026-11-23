@@ -18,6 +18,7 @@ Kronos 是一个面向全球应用的、协议优先、云原生、AI 原生、�
 | [原生 Go 验收](docs/design/go-verification.md) | 说明跨模块测试、业务依赖边界与协议生成检查 |
 | [一元 RPC 防腐层](docs/design/rpc-boundary.md) | 说明业务接口、Kratos 适配、期限与错误转换 |
 | [RPC 客户端协议选择](docs/design/rpc-client-protocol.md) | 说明标准 gRPC 与 go-micro v2 的调用选项和互通验收 |
+| [标准 gRPC 流客户端](docs/design/rpc-stream-client.md) | 说明公开流事件、终态确认和取消传播 |
 | [请求元数据](docs/design/request-metadata.md) | 说明请求标识、上下文传播和兼容监听行为 |
 | [结构化日志](docs/design/structured-logging.md) | 说明请求关联、日志安全字段和真实进程验收 |
 | [框架语言协商](docs/design/framework-localization.md) | 说明 HTTP、gRPC 和 SSE 的语言偏好与文案回退 |

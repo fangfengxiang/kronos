@@ -13,21 +13,16 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strings"
 	"syscall"
 	"testing"
 	"time"
 
 	"github.com/fangfengxiang/kronos/examples/assistant"
-	wire "github.com/fangfengxiang/kronos/examples/assistant/internal/wire/kronos/assistant/v1"
 	"github.com/fangfengxiang/kronos/framework/localization"
 	"github.com/fangfengxiang/kronos/framework/request"
 	"github.com/fangfengxiang/kronos/framework/rpc"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/credentials/insecure"
-	"google.golang.org/grpc/metadata"
-	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -152,7 +147,7 @@ func assertAssistantListeners(t *testing.T, ctx context.Context, httpAddress, gr
 	}
 	defer legacyClient.Close()
 	assertEcho(t, ctx, "go-micro v2", legacyClient)
-	assertStandardGRPCStream(t, ctx, grpcAddress)
+	assertStandardGRPCStream(t, ctx, grpcClient)
 	assertSSEListener(t, ctx, sseAddress, httpAddress)
 	assertMicroListener(t, ctx, microAddress)
 }
@@ -171,38 +166,29 @@ func localAddresses(t *testing.T, count int) []string {
 	return addresses
 }
 
-func assertStandardGRPCStream(t *testing.T, ctx context.Context, address string) {
+func assertStandardGRPCStream(t *testing.T, ctx context.Context, client *assistant.Client) {
 	t.Helper()
-	connection, err := grpc.NewClient(address, grpc.WithTransportCredentials(insecure.NewCredentials()))
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer connection.Close()
-	client := wire.NewAssistantClient(connection)
-	stream, err := client.StreamRun(ctx, &wire.StreamRunRequest{Prompt: "你好"})
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, expected := range []string{"你", "好"} {
-		event, err := stream.Recv()
-		if err != nil || event.GetTextDelta() != expected {
-			t.Fatalf("gRPC delta = %v, %v", event, err)
+	var deltas []string
+	completions := 0
+	err := client.StreamRun(ctx, &assistant.StreamRunRequest{Prompt: "你好"}, func(event *assistant.StreamRunResponse) error {
+		if event.GetCompleted() != nil {
+			completions++
+		} else {
+			deltas = append(deltas, event.GetTextDelta())
 		}
+		return nil
+	})
+	if err != nil || !slices.Equal(deltas, []string{"你", "好"}) || completions != 1 {
+		t.Fatalf("gRPC stream deltas = %q, completions = %d, error = %v", deltas, completions, err)
 	}
-	completion, err := stream.Recv()
-	if err != nil || completion.GetCompleted() == nil {
-		t.Fatalf("gRPC completion = %v, %v", completion, err)
-	}
-	if _, err := stream.Recv(); err != io.EOF {
-		t.Fatalf("gRPC stream ended with %v", err)
-	}
-	localizedCtx := metadata.AppendToOutgoingContext(ctx, localization.AcceptLanguageHeader, "zh-CN")
-	stream, err = client.StreamRun(localizedCtx, &wire.StreamRunRequest{})
-	if err == nil {
-		_, err = stream.Recv()
-	}
-	if failure := status.Convert(err); failure.Code() != codes.InvalidArgument || failure.Message() != "提示词不能为空" {
-		t.Fatalf("localized gRPC stream failure = %v", failure)
+	localizedCtx := localization.WithAcceptLanguage(ctx, "zh-CN")
+	err = client.StreamRun(localizedCtx, &assistant.StreamRunRequest{}, func(event *assistant.StreamRunResponse) error {
+		t.Errorf("invalid stream input returned event %v", event)
+		return nil
+	})
+	var failure *rpc.Error
+	if !errors.As(err, &failure) || failure.Code != rpc.InvalidArgument || failure.Reason != assistant.ErrorReasonInvalidPrompt.String() || failure.Message != "提示词不能为空" {
+		t.Fatalf("localized gRPC stream failure = %v", err)
 	}
 }
 

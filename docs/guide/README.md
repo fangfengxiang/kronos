@@ -43,6 +43,8 @@ legacyClient, err := assistant.NewRPCClient(ctx, "127.0.0.1:9091", time.Second,
     rpc.WithProtocol(rpc.ProtocolMicroV2))
 ```
 
+标准 gRPC 客户端通过 `Client.StreamRun` 调用服务端流。回调读取 `GetTextDelta()`，在成功结束后收到 `GetCompleted()`。回调返回错误会结束调用并取消服务端工作。[可执行的 Go 客户端示例](../../examples/assistant/stream_example_test.go) · [流终态与失败规则](../design/rpc-stream-client.md)
+
 ### 关联请求
 
 服务方法通过 `request.ID(ctx)` 读取请求标识。将同一个上下文传给 Kronos 的 HTTP 或 gRPC 客户端可继续传播该标识，调用方可用 `request.WithID` 设置自己的标识。go-micro v2 服务方法会收到本次调用的本地标识。[可执行的 Go 示例](../../framework/request/example_test.go) · [请求元数据契约](../design/request-metadata.md)

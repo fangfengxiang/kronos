@@ -90,6 +90,12 @@ func TestAssistantThroughKronosPublicAPI(t *testing.T) {
 				t.Fatal(err)
 			}
 			t.Cleanup(func() { _ = client.Close() })
+			if transport.name != "gRPC" {
+				err := client.StreamRun(ctx, &assistant.StreamRunRequest{}, func(*assistant.StreamRunResponse) error { return nil })
+				if !errors.Is(err, rpc.ErrStreamingUnsupported) {
+					t.Fatalf("%s stream error = %v, want ErrStreamingUnsupported", transport.name, err)
+				}
+			}
 
 			response, err := client.Run(ctx, &assistant.RunRequest{Prompt: "你好"})
 			if err != nil || response.GetText() != "你好" {

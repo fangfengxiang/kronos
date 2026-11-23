@@ -31,16 +31,20 @@ func NewHTTPClient(ctx context.Context, endpoint string, defaultTimeout time.Dur
 	}, defaultTimeout)
 }
 
-func NewGRPCClient(ctx context.Context, endpoint string, defaultTimeout time.Duration) (*rpc.UnaryClient[wire.RunRequest, wire.RunResponse], error) {
+func NewGRPCClient(ctx context.Context, endpoint string, defaultTimeout time.Duration) (*rpc.UnaryClient[wire.RunRequest, wire.RunResponse], streamRunFunc, error) {
 	connection, err := kratosgrpc.NewClient(ctx, kratosgrpc.WithEndpoint(endpoint), kratosgrpc.WithTimeout(0),
 		kratosgrpc.WithMiddleware(propagateOutgoingRequest))
 	if err != nil {
-		return nil, fromWireError(err)
+		return nil, nil, fromWireError(err)
 	}
 	client := wire.NewAssistantClient(connection)
-	return newUnaryClient(func(ctx context.Context, request *wire.RunRequest) (*wire.RunResponse, error) {
+	unary, err := newUnaryClient(func(ctx context.Context, request *wire.RunRequest) (*wire.RunResponse, error) {
 		return client.Run(ctx, request)
 	}, connection.Close, defaultTimeout)
+	if err != nil {
+		return nil, nil, err
+	}
+	return unary, newStreamRunner(client), nil
 }
 
 func newUnaryClient(invoke runHandler, closeConnection func() error, defaultTimeout time.Duration) (*rpc.UnaryClient[wire.RunRequest, wire.RunResponse], error) {
