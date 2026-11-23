@@ -12,7 +12,7 @@ Kronos 的 Core 原语已可通过 Go 包使用。Assistant v1 提供一元 HTTP
 | 用 Proto 声明服务并提供 gRPC 和 HTTP | 确认服务定义、HTTP 映射和生成物的权威来源。[协议与传输决定](../adr/0001-protobuf-and-transport.md) |
 | 发布一个可取消的 Agent 流 | 了解公开流事件、客户端取消和确定性模型装配。[Agent 流式决定](../adr/0002-agent-stream.md) · [Blades 文本 Agent 适配](../design/blades-adapter.md) |
 | 为同一个服务提供中英文体验 | 分辨请求语言偏好、系统消息和模型生成内容，查看默认回退。[本地化决定](../adr/0003-localization.md) |
-| 按用户时区展示时刻或归档日报 | 用 `core/timezone` 解析 IANA 时区并计算当地日期。精简部署可通过 `-tags timetzdata` 内嵌规则。[Core 时区](../design/core-timezone.md) · [可运行示例](../../core/timezone/timezone_test.go) |
+| 按用户时区展示时刻或归档日报 | 用 `core/timezone` 解析 IANA 时区并计算当地日期。精简部署可通过 `-tags timetzdata` 内嵌规则。[Core 时区](../design/core-timezone.md) · [日报日期示例](../../examples/reportdate) |
 | 在本机复现端到端测试 | 用 Compose 和 Go 测试验证镜像、探针、真实调用与容器关停。[容器交付](../design/assistant-compose.md) |
 
 ## 验证独立模块

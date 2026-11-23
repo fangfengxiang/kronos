@@ -2,7 +2,7 @@
 
 2026-11-23 审查 `b0c3419` 上 `go.work` 列出的 22 个独立模块。根模块承载参考服务与集成验收。逐库核对公开契约、调用边界、资源收尾和测试入口，并记录 `examples/` 中可追到实际调用的接线。[工作区](../../go.work) · [模块与依赖边界](../adr/0004-layer-and-module-boundaries.md)
 
-## 可复现的问题
+## 初审发现
 
 1. **P1 模型回调的 panic 会退出进程。** `TextModel` 迭代器由 Blades v0.6.0 的 agent 协程执行。临时 Go 用例注入抛出 panic 的模型，子进程以状态 2 退出。请求协程上的 RPC 恢复守卫无法接住这个 panic。需要在执行模型的协程边界将失败转换成内部错误，验证流能结束且进程仍可接收下一次请求。[模型迭代](../../infra/blades/model.go#L34) · [Go panic 语义](https://go.dev/ref/spec#Handling_panics)
 2. **P2 Assistant 恢复了请求，指标和链路却漏记这次失败。** 一元与流式处理都在业务函数返回后才执行收尾。注入两次业务 panic 后，外层守卫均返回 `ErrHandlerPanic`，失败指标和已结束的 span 均为零。两次请求也跳过 `request_finished`，恢复诊断仍由守卫写出。请求观测应收到恢复后的错误结果。[一元和流式入口](../../examples/assistant/cmd/assistant/main.go#L201-L220) · [观测收尾](../../examples/assistant/cmd/assistant/logging.go#L26-L59)
@@ -12,13 +12,13 @@
 
 ## 逐库示例与审查结果
 
-初审时 18 个模块在 `examples/` 下有真实 Go 接线。`core/runtime` 和 `core/timezone` 缺目录级调用，时区已有包内可运行示例。下表记录当前示例位置。两个平台工具分别服务协议生成和仓库验收。
+初审时 18 个模块在 `examples/` 下有真实 Go 接线。补齐 `core/runtime` 和 `core/timezone` 后，20 个运行模块均有对应调用。两个平台工具分别服务协议生成和仓库验收。下表记录当前示例位置。
 
 | 模块 | `examples/` 中的接线 | 包内 Go `Example` | 审查重点与结果 |
 | --- | --- | --- | --- |
 | `core/locale` | [Assistant 构建语言匹配器与文案目录](../../examples/assistant/cmd/assistant/service.go#L26-L38) | [文案回退](../../core/locale/catalog_test.go#L80) | 匹配、回退和目录快照有测试。 |
 | `core/runtime` | [后台文档任务](../../examples/runtimejob/main.go) | [观察 panic 终态](../../core/runtime/example_test.go) | 原生测试覆盖 panic、`Goexit` 和回调隔离。[协程测试](../../core/runtime/coroutine_test.go) |
-| `core/timezone` | 缺 | [按 IANA 时区换算日期](../../core/timezone/timezone_test.go#L76) | 夏令时切换与无效区域有测试。 |
+| `core/timezone` | [计算日报日期](../../examples/reportdate/main.go) | [按 IANA 时区换算日期](../../core/timezone/timezone_test.go#L76) | 夏令时、无效区域及显式时区跨日有测试。 |
 | `framework/app` | [Assistant 监听与应用生命周期](../../examples/assistant/cmd/assistant/main.go#L123-L182) | 缺 | 端口回滚、在途流排空与进程重载有原生 Go 测试。 |
 | `framework/localization` | [Assistant 协商及传播请求语言](../../examples/assistant/internal/binding/request.go#L21-L22) | 缺 | 权重顺序、回退和元数据快照有测试。 |
 | `framework/log` | [Assistant 创建 JSON 日志](../../examples/assistant/cmd/assistant/main.go#L28-L29) | [JSON 日志与请求 ID](../../framework/log/example_test.go#L12) | 日志实例与请求字段有测试。Assistant 的请求收尾见问题 2。 |
@@ -39,7 +39,7 @@
 | `platform/protogen` | 工具。[Assistant 生成模板](../../tools/proto/buf.gen.yaml#L16-L21) · [TextBackend 生成模板](../../tools/proto/buf.textbackend.gen.yaml#L11-L16) | 缺 | 多协议文件和名称冲突有测试。两套参考服务产物重生成一致。 |
 | `platform/verify` | 工具。[CI 原生 Go 入口](../../.github/workflows/ci.yml#L23-L39) | 缺 | 工作区测试、分层和生成检查已实跑。厂商 SDK 边界见问题 5。 |
 
-## Shell 测试核查与实测
+## 初审的 Shell 测试核查与实测
 
 扫描 Git 跟踪的 Shell 扩展名、可执行入口的 shebang、Go 测试的进程调用及 CI 配置，未发现仍由 Shell 实现的测试。集成用例直接启动 Go 构建的程序或 Docker，断言由 Go `testing` 执行。本轮清理了九份设计文档的失效入口，并在统一验收说明补齐独立测试命令。原先模块、分层与协议检查由 `d5e5fea` 迁移，旧协议互通由 `d0011f7` 迁移。[原生 Go 验收](../design/go-verification.md) · [CI 配置](../../.github/workflows/ci.yml)
 
@@ -50,7 +50,7 @@
 | `GOWORK=off go test -tags=interop -count=1 -v ./test/interop/microv2` | Go 1.25.0，Ubuntu 24.04 Linux arm64。官方 v2.0.0、v2.9.1 与 Kronos 双向互通通过，覆盖两种请求编码。 |
 | `GOWORK=off go test -tags=e2e -count=1 -v ./test/e2e/assistant` | macOS arm64 启动 Linux Compose 容器。Assistant 的四种入口、探针、启动失败和关停均通过。 |
 
-五个问题由临时原生 Go 用例单独复现，属于本次审查发现。Consul、Kafka、MongoDB、MySQL 和 Redis 的真实服务集成测试需要单独标签，本轮未运行这些用例。OSS 验证使用本地 HTTP 夹具。[参考服务集成用例](../../test/integration)
+初审用临时原生 Go 用例复现了五个问题。Consul、Kafka、MongoDB、MySQL 和 Redis 的真实服务集成测试需要单独标签，初审未运行这些用例。OSS 验证使用本地 HTTP 夹具。[参考服务集成用例](../../test/integration)
 
 ## 修复验收
 
@@ -62,3 +62,6 @@
 | 4 旧 RPC 响应边界 | 完整帧恰好 1 MiB 时成功，超限返回可解码的旧 RPC 错误。Linux 两版官方客户端和 Kronos 客户端验证了超限报错、裸编码大响应和双向互通。[设计与实测](../design/go-micro-v2-interop.md#实测与复盘) |
 | 5 厂商 SDK 导入边界 | CI 按 SDK 导入前缀检查适配归属。原生工作区夹具拦截 Kafka 生产导入，放行适配和专用测试导入。Linux arm64 与 macOS arm64 的工具测试和全仓导入检查均通过。[规则与实测](../design/go-verification.md#外部-sdk-归属) |
 | `core/runtime` 示例 | 后台任务示例从观察回调取得终态。Linux arm64 和 macOS arm64 均实跑命令并验证包内和应用 Go `Example`。[示例与实测](../design/runtime-go.md#后台任务示例) |
+| `core/timezone` 示例 | Linux arm64 实跑日报命令，在洛杉矶与上海得到不同日期。macOS arm64 的竞态回归执行包内和应用 Go `Example`。[示例与实测](../design/core-timezone.md#日报日期示例) |
+
+2026-11-24 整体验收使用 Go 1.25.0。macOS arm64 的 `go run ./platform/verify test`、`go run ./platform/verify deps` 和 `GOWORK=off go mod tidy -diff` 通过。Ubuntu 24.04 Linux arm64 的 `GOWORK=off go test -count=1 ./...`、`GOWORK=off go build ./examples/...`、`go run ./platform/verify deps` 与 `go run ./platform/verify proto` 通过。macOS arm64 驱动 `GOWORK=off go test -tags=e2e -count=1 -v ./test/e2e/assistant`，Linux Compose 容器通过四入口、探针、异常启动和关停回归。[Go 验收入口](../design/go-verification.md) · [容器测试](../../test/e2e/assistant/compose_test.go)

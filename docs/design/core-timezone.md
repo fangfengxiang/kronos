@@ -18,6 +18,17 @@
 
 日期分组使用 `localTime.Format(time.DateOnly)`。预约场景从当地挂钟时间求时刻时，缺失与重复时刻的处理由该业务契约决定。
 
+## 日报日期示例
+
+日报归档命令接收一个 RFC3339 时刻和由调用方指定的 `-zone` IANA 时区。命令用 `timezone.Convert` 计算当地时刻并输出日期键。非法时刻和时区返回错误，调用方可以据此修正输入。[命令示例](../../examples/reportdate)
+
+同一个时刻在洛杉矶归入上一日，在上海归入当日。示例用 Go `Example` 固定这两条输出。
+
+```sh
+GOWORK=off go run ./examples/reportdate -zone America/Los_Angeles 2025-01-02T01:00:00Z
+GOWORK=off go run ./examples/reportdate -zone Asia/Shanghai 2025-01-02T01:00:00Z
+```
+
 ## 通过条件
 
 - 用公开接口将同一 UTC 时刻转换到两个地区，验证日期键跨日、时刻等值及纳秒精度。验证 UTC、非整小时偏移和无效时区错误。
@@ -33,3 +44,5 @@
 独立 Go 消费者以 `GOOS=wasip1 GOARCH=wasm` 分别运行 `go build` 和 `go build -tags timetzdata`，在无预开放目录的 Node WASI 中执行。缺少时区数据时获得 `ErrInvalidZone`。内嵌构建将 `2025-01-02T01:00:00Z` 转为洛杉矶日报日期 `2025-01-01`。
 
 用独立消费者在同一机器比较逐次解析时区名与预先加载位置，前者约 13 微秒每次，后者的 `Time.In` 路径无分配。这是单次主机微基准。批处理可在装配时调用 `Load`，逐条复用返回的位置。
+
+Go 1.25.0、Ubuntu 24.04 Linux arm64 运行 `GOWORK=off go -C core/timezone test -count=1 ./...` 和 `GOWORK=off go test -count=1 ./examples/reportdate` 均通过。运行两次日报日期示例，洛杉矶输出 `2025-01-01`，上海输出 `2025-01-02`。macOS arm64 的 `go run ./platform/verify test` 通过时区包和日报示例的竞态回归。[跨日示例](../../examples/reportdate/main_test.go)
