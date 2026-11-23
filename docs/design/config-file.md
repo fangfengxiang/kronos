@@ -13,7 +13,8 @@ Assistant 的部署入口需要从挂载文件读取监听地址和关停预算�
 | `metrics` | 在 HTTP 监听启用 Prometheus `/metrics`，使用 `"true"` 或 `"false"` | `"false"` |
 | `trace-endpoint` | OTLP HTTP 追踪地址，空字符串关闭追踪 | `""` |
 | `runtime-profile` | 独立 loopback 快照监听地址，空字符串关闭 | `""` |
-| `text-backend` | 文本后端的 gRPC 直连地址，空字符串使用进程内文本源 | `""` |
+| `text-backend` | 文本后端的 gRPC 直连地址，与 `text-backend-consul` 互斥 | `""` |
+| `text-backend-consul` | 用于发现文本后端实例的 Consul agent HTTP(S) 地址 | `""` |
 | `shutdown-timeout` | 关停时间预算 | `5s` |
 
 优先级从高到低为显式命令行参数、配置文件、命令行参数默认值。显式空字符串或显式默认值也会覆盖文件。文件键和值类型均要通过检查。生效的时长沿用命令行的解析规则。路径按进程的工作目录解析。

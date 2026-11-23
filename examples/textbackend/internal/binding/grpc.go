@@ -39,10 +39,15 @@ func NewServer(listener net.Listener, generate generateFunc) rpc.Server {
 }
 
 func NewClient(ctx context.Context, endpoint string, defaultTimeout time.Duration) (*rpc.UnaryClient[wire.GenerateRequest, wire.GenerateResponse], error) {
-	connection, err := kratosgrpc.NewClient(ctx, kratosgrpc.WithEndpoint(endpoint), kratosgrpc.WithTimeout(0),
+	// A fixed address uses the standard policy independently of Kratos's global selector.
+	return newClient(ctx, endpoint, defaultTimeout, `{"loadBalancingConfig":[{"pick_first":{}}]}`)
+}
+
+func newClient(ctx context.Context, target string, defaultTimeout time.Duration, serviceConfig string, options ...grpc.DialOption) (*rpc.UnaryClient[wire.GenerateRequest, wire.GenerateResponse], error) {
+	dialOptions := append([]grpc.DialOption{grpc.WithDisableServiceConfig(), grpc.WithDefaultServiceConfig(serviceConfig)}, options...)
+	connection, err := kratosgrpc.NewClient(ctx, kratosgrpc.WithEndpoint(target), kratosgrpc.WithTimeout(0),
 		kratosgrpc.WithMiddleware(propagateRequestID),
-		// A fixed address uses the standard policy independently of Kratos's global selector.
-		kratosgrpc.WithOptions(grpc.WithDisableServiceConfig(), grpc.WithDefaultServiceConfig(`{"loadBalancingConfig":[{"pick_first":{}}]}`)))
+		kratosgrpc.WithOptions(dialOptions...))
 	if err != nil {
 		return nil, fromWireError(err)
 	}

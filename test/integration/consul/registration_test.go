@@ -23,35 +23,10 @@ import (
 )
 
 func TestTextBackendRegistersWithConsul(t *testing.T) {
-	agentBinary := os.Getenv("KRONOS_CONSUL_EXECUTABLE")
-	if agentBinary == "" {
-		t.Fatal("set KRONOS_CONSUL_EXECUTABLE to a Consul binary")
-	}
-	backendBinary := buildTextBackend(t)
-	ports := loopbackPorts(t, 4)
-	settings := map[string]any{
-		"bind_addr": "127.0.0.1", "client_addr": "127.0.0.1", "disable_update_check": true,
-		"ports": map[string]int{"http": ports[0], "server": ports[1], "serf_lan": ports[2], "serf_wan": ports[3],
-			"dns": -1, "grpc": -1, "grpc_tls": -1},
-	}
-	config, err := json.Marshal(settings)
-	if err != nil {
-		t.Fatal(err)
-	}
-	configPath := filepath.Join(t.TempDir(), "consul.json")
-	if err := os.WriteFile(configPath, config, 0600); err != nil {
-		t.Fatal(err)
-	}
+	backendBinary := buildReferenceCommand(t, "textbackend", "./examples/textbackend/cmd/textbackend")
 	ctx, cancel := context.WithTimeout(t.Context(), 25*time.Second)
 	defer cancel()
-	agent := startChild(t, ctx, agentBinary, "agent", "-dev", "-config-file", configPath)
-	endpoint := "http://127.0.0.1:" + strconv.Itoa(ports[0])
-	registry, err := consul.New(endpoint)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer registry.Close()
-	awaitConsul(t, ctx, registry, agent.done)
+	endpoint, registry := startConsulAgent(t, ctx)
 
 	watchContext, cancelWatch := context.WithCancel(ctx)
 	defer cancelWatch()
@@ -84,17 +59,7 @@ func TestTextBackendRegistersWithConsul(t *testing.T) {
 	if err != nil || response.GetText() != "backend: 你好" {
 		t.Fatalf("healthy instance returned %v, %v", response, err)
 	}
-	if err := backend.command.Process.Signal(syscall.SIGTERM); err != nil {
-		t.Fatal(err)
-	}
-	select {
-	case <-backend.done:
-		if backend.err != nil {
-			t.Fatalf("backend did not stop cleanly: %v", backend.err)
-		}
-	case <-ctx.Done():
-		t.Fatal("backend did not stop after SIGTERM")
-	}
+	backend.stop(t, ctx)
 	if addresses := nextSnapshot(t, ctx, updates); len(addresses) != 0 {
 		t.Fatalf("Consul snapshot after shutdown = %v", addresses)
 	}
@@ -117,6 +82,37 @@ func TestTextBackendRegistersWithConsul(t *testing.T) {
 	}
 }
 
+func startConsulAgent(t *testing.T, ctx context.Context) (string, *consul.Registry) {
+	t.Helper()
+	agentBinary := os.Getenv("KRONOS_CONSUL_EXECUTABLE")
+	if agentBinary == "" {
+		t.Fatal("set KRONOS_CONSUL_EXECUTABLE to a Consul binary")
+	}
+	ports := loopbackPorts(t, 4)
+	settings := map[string]any{
+		"bind_addr": "127.0.0.1", "client_addr": "127.0.0.1", "disable_update_check": true,
+		"ports": map[string]int{"http": ports[0], "server": ports[1], "serf_lan": ports[2], "serf_wan": ports[3],
+			"dns": -1, "grpc": -1, "grpc_tls": -1},
+	}
+	config, err := json.Marshal(settings)
+	if err != nil {
+		t.Fatal(err)
+	}
+	configPath := filepath.Join(t.TempDir(), "consul.json")
+	if err := os.WriteFile(configPath, config, 0600); err != nil {
+		t.Fatal(err)
+	}
+	agent := startChild(t, ctx, agentBinary, "agent", "-dev", "-config-file", configPath)
+	endpoint := "http://127.0.0.1:" + strconv.Itoa(ports[0])
+	registry, err := consul.New(endpoint)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(registry.Close)
+	awaitConsul(t, ctx, registry, agent.done)
+	return endpoint, registry
+}
+
 func nextSnapshot(t *testing.T, ctx context.Context, updates <-chan []string) []string {
 	t.Helper()
 	select {
@@ -130,20 +126,15 @@ func nextSnapshot(t *testing.T, ctx context.Context, updates <-chan []string) []
 
 func awaitConsul(t *testing.T, ctx context.Context, registry *consul.Registry, agentDone <-chan struct{}) {
 	t.Helper()
-	retry := time.NewTicker(30 * time.Millisecond)
-	defer retry.Stop()
-	for {
-		if addresses, err := registry.Lookup(ctx, "textbackend"); err == nil && len(addresses) == 0 {
-			return
-		}
+	await(t, ctx, "Consul agent readiness", func() bool {
 		select {
 		case <-agentDone:
 			t.Fatal("Consul agent exited during startup")
-		case <-ctx.Done():
-			t.Fatal("Consul agent did not become ready")
-		case <-retry.C:
+		default:
 		}
-	}
+		addresses, err := registry.Lookup(ctx, textbackend.DefaultServiceName)
+		return err == nil && len(addresses) == 0
+	})
 }
 
 func assertConsulHealth(t *testing.T, ctx context.Context, endpoint string, expected []string) {
@@ -197,16 +188,16 @@ func loopbackPorts(t *testing.T, count int) []int {
 	return ports
 }
 
-func buildTextBackend(t *testing.T) string {
+func buildReferenceCommand(t *testing.T, name, packagePath string) string {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(t.Context(), 2*time.Minute)
 	defer cancel()
-	binary := filepath.Join(t.TempDir(), "textbackend")
-	command := exec.CommandContext(ctx, "go", "build", "-o", binary, "./examples/textbackend/cmd/textbackend")
+	binary := filepath.Join(t.TempDir(), name)
+	command := exec.CommandContext(ctx, "go", "build", "-o", binary, packagePath)
 	command.Dir = "../../.."
 	command.Env = append(os.Environ(), "GOWORK=off")
 	if output, err := command.CombinedOutput(); err != nil {
-		t.Fatalf("build text backend: %v\n%s", err, output)
+		t.Fatalf("build %s: %v\n%s", name, err, output)
 	}
 	return binary
 }
@@ -239,4 +230,19 @@ func startChild(t *testing.T, ctx context.Context, binary string, arguments ...s
 		}
 	})
 	return child
+}
+
+func (child *childProcess) stop(t *testing.T, ctx context.Context) {
+	t.Helper()
+	if err := child.command.Process.Signal(syscall.SIGTERM); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case <-child.done:
+		if child.err != nil {
+			t.Fatalf("%s did not stop cleanly: %v", child.command.Path, child.err)
+		}
+	case <-ctx.Done():
+		t.Fatalf("%s did not stop after SIGTERM", child.command.Path)
+	}
 }

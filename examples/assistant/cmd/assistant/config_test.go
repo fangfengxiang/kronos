@@ -71,6 +71,13 @@ func TestAssistantRejectsInvalidStartupConfig(t *testing.T) {
 	}
 }
 
+func TestAssistantRequiresOneTextBackendSource(t *testing.T) {
+	err := run(t.Context(), []string{"-text-backend", "127.0.0.1:9290", "-text-backend-consul", "http://127.0.0.1:8500"}, slog.New(slog.DiscardHandler))
+	if err == nil || !strings.Contains(err.Error(), "configure only one of text-backend and text-backend-consul") {
+		t.Fatalf("startup with two text backend sources = %v", err)
+	}
+}
+
 func writeAssistantConfig(t *testing.T, path string, options map[string]string) {
 	t.Helper()
 	data, err := json.Marshal(options)

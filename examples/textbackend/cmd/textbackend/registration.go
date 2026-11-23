@@ -6,11 +6,10 @@ import (
 	"errors"
 	"time"
 
+	"github.com/fangfengxiang/kronos/examples/textbackend"
 	"github.com/fangfengxiang/kronos/framework/app"
 	"github.com/fangfengxiang/kronos/infra/consul"
 )
-
-const registryServiceName = "textbackend"
 
 type registeredBackend struct {
 	app.Server
@@ -19,7 +18,8 @@ type registeredBackend struct {
 }
 
 func registerBackend(ctx context.Context, server app.Server, registry *consul.Registry, address string) (app.Server, error) {
-	instance := consul.Instance{ID: registryServiceName + "-" + rand.Text(), Name: registryServiceName, Address: address}
+	serviceName := textbackend.DefaultServiceName
+	instance := consul.Instance{ID: serviceName + "-" + rand.Text(), Name: serviceName, Address: address}
 	backend := registeredBackend{Server: server, registry: registry, instanceID: instance.ID}
 	registerContext, cancelRegistration := context.WithTimeout(ctx, 2*time.Second)
 	defer cancelRegistration()

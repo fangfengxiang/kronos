@@ -18,6 +18,7 @@ import (
 	"github.com/fangfengxiang/kronos/framework/log"
 	"github.com/fangfengxiang/kronos/framework/rpc"
 	"github.com/fangfengxiang/kronos/infra/blades"
+	"github.com/fangfengxiang/kronos/infra/consul"
 	"github.com/fangfengxiang/kronos/infra/oteltrace"
 	"github.com/fangfengxiang/kronos/infra/prometheus"
 	"github.com/fangfengxiang/kronos/infra/runtimeprofile"
@@ -46,6 +47,7 @@ func run(ctx context.Context, args []string, logger *slog.Logger) (runError erro
 	traceEndpoint := flags.String("trace-endpoint", "", "OTLP HTTP trace endpoint URL (empty disables tracing)")
 	profileAddress := flags.String("runtime-profile", "", "loopback runtime profile listen address (empty disables profiling)")
 	textBackendAddress := flags.String("text-backend", "", "plaintext text backend gRPC address (empty uses local text generation)")
+	textBackendRegistry := flags.String("text-backend-consul", "", "Consul HTTP(S) agent URL for text backend discovery")
 	shutdownTimeout := flags.Duration("shutdown-timeout", 5*time.Second, "time allowed for graceful shutdown")
 	reloadPIDFile := flags.String(reloadPIDFileFlag, "", "PID file for SIGHUP reload (empty disables reload)")
 	reloadStartupTimeout := flags.Duration(reloadTimeoutFlag, 30*time.Second, "time allowed for a replacement to become ready")
@@ -69,11 +71,26 @@ func run(ctx context.Context, args []string, logger *slog.Logger) (runError erro
 		}
 	}()
 	textModel := echoText
-	if *textBackendAddress != "" {
-		backend, err := textbackend.NewGRPCClient(ctx, *textBackendAddress, 2*time.Second)
+	const defaultBackendTimeout = 2 * time.Second
+	var backend *textbackend.Client
+	var connectError error
+	switch {
+	case *textBackendAddress != "" && *textBackendRegistry != "":
+		return errors.New("configure only one of text-backend and text-backend-consul")
+	case *textBackendAddress != "":
+		backend, connectError = textbackend.NewGRPCClient(ctx, *textBackendAddress, defaultBackendTimeout)
+	case *textBackendRegistry != "":
+		registry, err := consul.New(*textBackendRegistry)
 		if err != nil {
 			return err
 		}
+		defer registry.Close()
+		backend, connectError = textbackend.NewDiscoveredGRPCClient(ctx, textbackend.DefaultServiceName, defaultBackendTimeout, registry)
+	}
+	if connectError != nil {
+		return connectError
+	}
+	if backend != nil {
 		defer func() { runError = errors.Join(runError, backend.Close()) }()
 		textModel = modelForBackend(backend)
 	}

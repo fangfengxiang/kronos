@@ -20,14 +20,9 @@ import (
 )
 
 func TestKronosAndStandardGRPCClients(t *testing.T) {
-	listener, err := net.Listen("tcp", "127.0.0.1:0")
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { listener.Close() })
 	const invalidPrompt = "ERROR_REASON_INVALID_PROMPT"
 	deadlineObserved := make(chan error, 1)
-	server, err := textbackend.NewGRPCServer(listener, generateFunc(func(ctx context.Context, input *textbackend.GenerateRequest) (*textbackend.GenerateResponse, error) {
+	endpoint := startBindingServer(t, generateFunc(func(ctx context.Context, input *textbackend.GenerateRequest) (*textbackend.GenerateResponse, error) {
 		switch input.GetPrompt() {
 		case "":
 			return nil, &rpc.Error{Code: rpc.InvalidArgument, Reason: invalidPrompt, Message: "missing prompt"}
@@ -40,22 +35,6 @@ func TestKronosAndStandardGRPCClients(t *testing.T) {
 		}
 		return &textbackend.GenerateResponse{Text: input.GetPrompt() + " " + request.ID(ctx)}, nil
 	}))
-	if err != nil {
-		t.Fatal(err)
-	}
-	served := make(chan error, 1)
-	go func() { served <- server.Start(context.WithoutCancel(t.Context())) }()
-	t.Cleanup(func() {
-		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
-		defer cancel()
-		if err := server.Stop(ctx); err != nil {
-			t.Error(err)
-		}
-		if err := <-served; err != nil {
-			t.Error(err)
-		}
-	})
-	endpoint := listener.Addr().String()
 	client, err := textbackend.NewGRPCClient(t.Context(), endpoint, 300*time.Millisecond)
 	if err != nil {
 		t.Fatal(err)
@@ -124,4 +103,30 @@ type generateFunc func(context.Context, *textbackend.GenerateRequest) (*textback
 
 func (generate generateFunc) Generate(ctx context.Context, input *textbackend.GenerateRequest) (*textbackend.GenerateResponse, error) {
 	return generate(ctx, input)
+}
+
+func startBindingServer(t *testing.T, service textbackend.TextBackendServiceUnaryService) string {
+	t.Helper()
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { listener.Close() })
+	server, err := textbackend.NewGRPCServer(listener, service)
+	if err != nil {
+		t.Fatal(err)
+	}
+	served := make(chan error, 1)
+	go func() { served <- server.Start(context.WithoutCancel(t.Context())) }()
+	t.Cleanup(func() {
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+		defer cancel()
+		if err := server.Stop(ctx); err != nil {
+			t.Error(err)
+		}
+		if err := <-served; err != nil {
+			t.Error(err)
+		}
+	})
+	return listener.Addr().String()
 }

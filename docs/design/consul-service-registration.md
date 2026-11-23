@@ -2,6 +2,8 @@
 
 TextBackend 的启动入口可以向部署方指定的 Consul agent 注册自身。调用方或运维工具可以通过 `infra/consul` 查找健康实例，并观察新增、移除与全空快照。
 
+Assistant 可以把订阅接到 gRPC 连接，按服务名调用当前健康实例。[动态服务发现](text-backend-discovery.md)
+
 ## 契约与所有权
 
 - `infra/consul` 是独立 Go 模块。`New` 接受 HTTP(S) agent 地址，沿用官方 SDK 的 ACL 和 TLS 环境配置。`Register` 使用 `Instance{ID, Name, Address}` 注册明文 gRPC 实例，按 ID 替换检查。`Deregister` 按 ID 注销，实例已经不存在时可重复调用。调用方提供请求上下文，负责取消在途订阅后关闭空闲 HTTP 连接。

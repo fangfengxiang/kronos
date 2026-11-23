@@ -106,6 +106,12 @@ TextBackend 可以向已有 Consul agent 注册 `textbackend` 实例。部署在
 go run ./examples/textbackend/cmd/textbackend -grpc 127.0.0.1:9290 -consul http://127.0.0.1:8500
 ```
 
+Assistant 用同一个 Consul agent 按名称发现已注册并通过健康检查的实例。使用 `-text-backend-consul` 时省略 `-text-backend`。两项皆为空时使用进程内文本源。[动态调用设计](../design/text-backend-discovery.md) · [可执行的 Go 示例](../../examples/textbackend/example_test.go)
+
+```sh
+go run ./examples/assistant/cmd/assistant -text-backend-consul http://127.0.0.1:8500
+```
+
 ### 通过 Docker Compose 运行
 
 从仓库根目录构建并等待容器就绪。HTTP、gRPC、SSE 和 go-micro v2 分别使用容器端口 `8080`、`9090`、`8081`、`9091`，按下方命令查询宿主回环地址。挂载配置定义各监听和应用关停预算。[Compose 配置](../../compose.yaml) · [容器启动配置](../../examples/assistant/deploy/assistant.json)
