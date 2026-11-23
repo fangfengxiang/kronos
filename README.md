@@ -26,6 +26,7 @@ Kronos 是一个面向全球应用的、协议优先、云原生、AI 原生、�
 | [启动配置文件](docs/design/config-file.md) | 说明启动参数、文件快照和候选进程重新读取行为 |
 | [应用优雅重载](docs/design/graceful-reload.md) | 说明进程接力、候选就绪和旧进程排空 |
 | [SSE 与 go-micro v2 监听](docs/design/additional-listeners.md) | 说明独立监听、流事件和旧协议互通范围 |
+| [go-micro v2 原生 Go 互通验收](docs/design/go-micro-v2-interop.md) | 说明两版官方客户端和服务端的双向对照测试 |
 | [架构决策](docs/adr/README.md) | 记录已对齐的方向、取舍及验证要求 |
 | [框架使用文档](docs/guide/README.md) | 汇总服务定义、生成、测试和部署流程 |
 | [仓库协作约定](AGENTS.md) | 说明文档先行、改动边界和交付要求 |

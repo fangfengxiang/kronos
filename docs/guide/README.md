@@ -86,10 +86,13 @@ go run ./examples/assistant/cmd/assistant \
 ```sh
 curl --no-buffer -fsS http://127.0.0.1:8081/v1/assistant:streamRun \
   -H 'Content-Type: application/json' -H 'Accept: text/event-stream' -d '{"prompt":"你好"}'
-bash test/interop/microv2/verify.sh 127.0.0.1:9091
 ```
 
-SSE 的请求体使用 JSON。调用示例的 go-micro v2 服务名是 `kronos.assistant.v1.Assistant`，端点名是 `Assistant.Run`。互通脚本按版本构建官方客户端和服务端，首次运行需要访问 Go 模块代理。[监听与互通设计](../design/additional-listeners.md)
+SSE 的请求体使用 JSON。调用示例的 go-micro v2 服务名是 `kronos.assistant.v1.Assistant`，端点名是 `Assistant.Run`。Go 互通测试自行启动服务，按版本构建官方客户端和服务端。首次运行需要访问 Go 模块代理或使用模块缓存。[原生 Go 互通验收](../design/go-micro-v2-interop.md) · [可执行协议选项示例](../../framework/rpc/example_test.go)
+
+```sh
+go test -tags=interop -count=1 ./test/interop/microv2
+```
 
 ### 从文件读取启动配置
 

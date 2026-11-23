@@ -2,9 +2,9 @@ package main
 
 import (
 	"context"
+	"errors"
+	"io"
 	"os"
-	"os/signal"
-	"syscall"
 
 	memorybroker "github.com/micro/go-micro/v2/broker/memory"
 	microerrors "github.com/micro/go-micro/v2/errors"
@@ -22,9 +22,7 @@ func (*Assistant) Run(_ context.Context, request *Request, response *Response) e
 	return nil
 }
 
-func serve(readyFile string) error {
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer stop()
+func serve(readyFile string) (serveError error) {
 	legacyServer := server.NewServer(server.Address("127.0.0.1:0"), server.Name("kronos.assistant.v1.Assistant"),
 		server.Broker(memorybroker.NewBroker()), server.Registry(memoryregistry.NewRegistry()))
 	if err := legacyServer.Handle(legacyServer.NewHandler(&Assistant{})); err != nil {
@@ -33,13 +31,13 @@ func serve(readyFile string) error {
 	if err := legacyServer.Start(); err != nil {
 		return err
 	}
-	defer legacyServer.Stop()
+	defer func() { serveError = errors.Join(serveError, legacyServer.Stop()) }()
 	if err := os.WriteFile(readyFile+".tmp", []byte(legacyServer.Options().Address), 0600); err != nil {
 		return err
 	}
 	if err := os.Rename(readyFile+".tmp", readyFile); err != nil {
 		return err
 	}
-	<-ctx.Done()
-	return nil
+	_, err := io.Copy(io.Discard, os.Stdin)
+	return err
 }
