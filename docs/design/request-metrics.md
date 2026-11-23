@@ -9,7 +9,7 @@ Assistant 的运维方可以按业务方法检查请求数量和处理耗时。�
 | `kronos_rpc_requests_total` | 进入业务入口并退出的请求计数。 |
 | `kronos_rpc_request_duration_seconds` | 同一请求的入口至返回耗时，单位为秒，使用 Prometheus 直方图。 |
 
-指标标签为启动时登记的 `operation` 与受控的 `outcome`。Assistant 登记 `Run` 和 `StreamRun`，`outcome` 使用 `success` 与 `error`。HTTP、gRPC、SSE 和 go-micro v2 的同一业务方法计入同一组指标。流式调用在整个方法返回时记录一次，接流拒绝、校验失败、取消和模型失败归入 `error`。输入提示词、用户字段、错误文案和请求 ID 不参与标签。
+指标标签为启动时登记的 `operation` 与受控的 `outcome`。Assistant 登记 `Run` 和 `StreamRun`，`outcome` 使用 `success` 与 `error`。HTTP、gRPC、SSE 和 go-micro v2 的同一业务方法计入同一组指标。流式调用在整个方法返回时记录一次，接流拒绝、校验失败、取消、模型失败和已恢复的业务 panic 归入 `error`。输入提示词、用户字段、错误文案和请求 ID 不参与标签。[请求恢复](rpc-handler-recovery.md)
 
 ## 边界与取舍
 

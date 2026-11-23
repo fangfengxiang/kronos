@@ -200,22 +200,26 @@ type admittingService struct {
 
 func (service admittingService) Run(ctx context.Context, request *assistant.RunRequest) (*assistant.RunResponse, error) {
 	ctx, observation := service.beginRequest(ctx, "Run")
-	if err := service.checkReadiness(); err != nil {
-		service.recordRequestResult(ctx, observation, err)
-		return nil, err
-	}
-	response, err := service.next.Run(ctx, request)
+	run := rpc.RecoverUnary(func(ctx context.Context, request *assistant.RunRequest) (*assistant.RunResponse, error) {
+		if err := service.checkReadiness(); err != nil {
+			return nil, err
+		}
+		return service.next.Run(ctx, request)
+	})
+	response, err := run(ctx, request)
 	service.recordRequestResult(ctx, observation, err)
 	return response, err
 }
 
 func (service admittingService) StreamRun(ctx context.Context, request *assistant.StreamRunRequest, emit func(string) error) error {
 	ctx, observation := service.beginRequest(ctx, "StreamRun")
-	if err := service.checkReadiness(); err != nil {
-		service.recordRequestResult(ctx, observation, err)
-		return err
-	}
-	err := service.stream.StreamRun(ctx, request, emit)
+	run := rpc.RecoverStream(func(ctx context.Context, request *assistant.StreamRunRequest, emit func(string) error) error {
+		if err := service.checkReadiness(); err != nil {
+			return err
+		}
+		return service.stream.StreamRun(ctx, request, emit)
+	})
+	err := run(ctx, request, emit)
 	service.recordRequestResult(ctx, observation, err)
 	return err
 }

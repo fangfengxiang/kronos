@@ -5,7 +5,7 @@
 Assistant 的部署方从进程标准错误流收集逐行 JSON。命令入口创建自己的日志实例，并记录监听启动、候选重载失败、进程失败和正常退出。业务调用入口记录方法、状态、稳定原因与耗时。日志随请求上下文获得 `request_id`，同一调用的多个记录可以关联。
 
 - `framework/log.NewJSON(io.Writer, *slog.HandlerOptions)` 返回标准 `*slog.Logger`。调用方管理输出位置和等级。关联标识由 `framework/request` 提供，未设置标识时省略 `request_id`。调用方通过 `InfoContext` 等方法传入原请求上下文，日志实例与级别互相独立。
-- Assistant 在业务方法结束时记录 `request_finished`。字段包含 `operation`、`status`、`duration_us`，有业务原因时记录 `reason`。正常结果使用 `INFO`，失败结果使用 `WARN`。已知业务错误的状态与原因沿用公开错误。取消和超时保留标准语义。未知错误记为 `INTERNAL`，日志仅记录状态字段。业务日志选取固定字段，提示词、正文、请求头和内部错误文本留在业务处理边界。
+- Assistant 在业务方法结束时记录 `request_finished`。字段包含 `operation`、`status`、`duration_us`，有业务原因时记录 `reason`。正常结果使用 `INFO`，失败结果使用 `WARN`。已知业务错误的状态与原因沿用公开错误。取消和超时保留标准语义。未知错误和已恢复的业务 panic 记为 `INTERNAL`。业务日志选取固定字段，提示词、正文、请求头和内部错误文本留在业务处理边界。[请求恢复](rpc-handler-recovery.md)
 - 启动与重载日志记录运维需要的监听地址和启动错误。进程正常退出会记录 `app_stopped`，启动或运行失败会记录 `app_failed`。独立命令进程将同一实例设为标准默认日志，接收 Kratos 的传输启动与关停消息。命令帮助和参数诊断由 `flag` 输出。日志由运行环境采集和轮转。[应用装配与关停](app-lifecycle.md) · [请求元数据](request-metadata.md)
 
 ## 边界与取舍
