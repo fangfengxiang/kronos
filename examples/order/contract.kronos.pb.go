@@ -33,3 +33,20 @@ func BindOrderService(implementation OrderServiceUnaryService) kronos.Service {
 		kronos.Unary("GetOrder", &GetOrderRequest{}, &GetOrderResponse{}, implementation.GetOrder),
 	)
 }
+
+// OrderServiceClient invokes the Protobuf service through a Kronos client.
+type OrderServiceClient struct{ client *kronos.Client }
+
+// NewOrderServiceClient keeps the caller's shared Kronos client.
+func NewOrderServiceClient(client *kronos.Client) *OrderServiceClient {
+	return &OrderServiceClient{client: client}
+}
+
+func (service *OrderServiceClient) GetOrder(ctx context.Context, request *GetOrderRequest) (*GetOrderResponse, error) {
+	method := v1.File_kronos_order_v1_order_proto.Services().ByName("OrderService").Methods().ByName("GetOrder")
+	response := new(GetOrderResponse)
+	if err := service.client.Invoke(ctx, method, request, response); err != nil {
+		return nil, err
+	}
+	return response, nil
+}

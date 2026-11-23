@@ -57,3 +57,4 @@
 - macOS arm64 的 `go run ./platform/verify test` 和 `go run ./platform/verify deps` 通过。Linux arm64 的 `go run ./platform/verify deps` 和 `go run ./platform/verify proto` 通过。运行 `GOWORK=off GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go -C infra/etcd test -c` 生成 Windows 测试二进制。
 - `framework/app.RunWithReadyHook` 已通过 Linux 回环发布和有界关停测试。HTTP 请求证实发布时监听已经可用，撤销与传输共享一个截止时间，部分失败后释放端口。Order 的真实进程摘流进入后续集成验收。[生命周期实测](app-lifecycle.md#实测与复盘)
 - Order 进程的 21 行装配已运行。真实 etcd 上的原生 gRPC 与两版官方旧客户端通过服务名路径对照成功，`SIGTERM` 后两个地址注销。[统一服务端与实测](unary-service-api.md#实测)
+- Kronos 客户端通过真实 etcd 调用两版官方旧服务端，并在两种协议上验证多实例选择与绕行。生成的 Order 客户端及命令行入口使用同一公开 API。[发现客户端与实测](discovered-rpc-client.md#实测)

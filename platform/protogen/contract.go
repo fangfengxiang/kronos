@@ -128,7 +128,7 @@ func (plan *contract) collectFile(file *protogen.File) error {
 				return err
 			}
 			if plan.bindings {
-				for _, name := range []string{service.GoName + "Name", "Bind" + service.GoName} {
+				for _, name := range []string{service.GoName + "Name", "Bind" + service.GoName, service.GoName + "Client", "New" + service.GoName + "Client"} {
 					if err := plan.reserveName(name, ""); err != nil {
 						return err
 					}
@@ -163,6 +163,30 @@ func (plan *contract) writeUnaryBinding(output *protogen.GeneratedFile, service 
 	}
 	output.P(")")
 	output.P("}")
+	output.P()
+	clientName := serviceName + "Client"
+	output.P("// ", clientName, " invokes the Protobuf service through a Kronos client.")
+	output.P("type ", clientName, " struct { client *", output.QualifiedGoIdent(kronos.Ident("Client")), " }")
+	output.P()
+	output.P("// New", clientName, " keeps the caller's shared Kronos client.")
+	output.P("func New", clientName, "(client *", output.QualifiedGoIdent(kronos.Ident("Client")), ") *", clientName, " {")
+	output.P("return &", clientName, "{client: client}")
+	output.P("}")
+	for _, method := range service.methods {
+		ctx := output.QualifiedGoIdent(protogen.GoImportPath("context").Ident("Context"))
+		input := plan.publicName(output, method.Input.GoIdent)
+		response := plan.publicName(output, method.Output.GoIdent)
+		output.P()
+		output.P("func (service *", clientName, ") ", method.GoName, "(ctx ", ctx, ", request *", input, ") (*", response, ", error) {")
+		output.P("method := ", output.QualifiedGoIdent(service.fileDescriptor), ".Services().ByName(",
+			strconv.Quote(string(service.descriptor.Desc.Name())), ").Methods().ByName(", strconv.Quote(string(method.Desc.Name())), ")")
+		output.P("response := new(", response, ")")
+		output.P("if err := service.client.Invoke(ctx, method, request, response); err != nil {")
+		output.P("return nil, err")
+		output.P("}")
+		output.P("return response, nil")
+		output.P("}")
+	}
 }
 
 func (plan *contract) collectEnum(enum *protogen.Enum) error {

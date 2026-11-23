@@ -5,6 +5,7 @@ package microv2_test
 import (
 	"context"
 	"crypto/rand"
+	"errors"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -15,6 +16,7 @@ import (
 
 	"github.com/fangfengxiang/kronos/examples/order"
 	"github.com/fangfengxiang/kronos/infra/etcd"
+	"github.com/fangfengxiang/kronos/platform/kronos"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
@@ -41,6 +43,10 @@ func TestOrderThroughOfficialRegistryAndClients(t *testing.T) {
 		t.Fatalf("Order published the same address for both protocols: %s", grpcAddress)
 	}
 	assertOrderOverGRPC(t, grpcAddress)
+	t.Run("Kronos clients to Order", func(t *testing.T) {
+		assertTypedOrder(t, registry, serviceName, "confirmed")
+		assertTypedOrder(t, registry, serviceName, "confirmed", kronos.Protocol(kronos.ProtocolMicroV2))
+	})
 
 	for _, version := range []string{"v2.0.0", "v2.9.1"} {
 		t.Run(version, func(t *testing.T) {
@@ -53,6 +59,24 @@ func TestOrderThroughOfficialRegistryAndClients(t *testing.T) {
 				t.Fatalf("official Registry nodes = %q, want only %s", output, microAddress)
 			}
 			t.Log(runRegistryFixture(t, ctx, binary, endpoint, serviceName, "order"))
+
+			legacyName := "go.micro.srv.legacy-order." + rand.Text()
+			legacyAddress := startFixtureProcess(t, ctx, binary, endpoint, legacyName, "serve")
+			addresses, err := registry.Lookup(ctx, legacyName, "micro-v2")
+			if err != nil || len(addresses) != 1 || addresses[0] != legacyAddress {
+				t.Fatalf("official server publication = %v, %v, want %s", addresses, err, legacyAddress)
+			}
+			assertTypedOrder(t, registry, legacyName, "legacy-confirmed", kronos.Protocol(kronos.ProtocolMicroV2))
+			defaultClient, err := kronos.NewClient(kronos.Registry(registry), kronos.Name(legacyName))
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer defaultClient.Close()
+			_, err = order.NewOrderServiceClient(defaultClient).GetOrder(ctx, &order.GetOrderRequest{OrderId: "订单-02"})
+			var failure *kronos.Error
+			if !errors.As(err, &failure) || failure.Code != kronos.Unavailable || failure.Reason != "NO_INSTANCES" {
+				t.Fatalf("default gRPC against an old-protocol-only service = %v", err)
+			}
 		})
 	}
 	if err := process.command.Process.Signal(syscall.SIGTERM); err != nil {
@@ -71,6 +95,28 @@ func TestOrderThroughOfficialRegistryAndClients(t *testing.T) {
 		if err != nil || len(addresses) != 0 {
 			t.Fatalf("%s after Order exit: %v, %v", protocol, addresses, err)
 		}
+	}
+}
+
+func assertTypedOrder(t *testing.T, registry *etcd.Registry, service, wantStatus string, options ...kronos.Option) {
+	t.Helper()
+	options = append([]kronos.Option{kronos.Registry(registry), kronos.Name(service)}, options...)
+	client, err := kronos.NewClient(options...)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer client.Close()
+	ctx, cancel := context.WithTimeout(t.Context(), 3*time.Second)
+	defer cancel()
+	orders := order.NewOrderServiceClient(client)
+	result, err := orders.GetOrder(ctx, &order.GetOrderRequest{OrderId: "订单-02"})
+	if err != nil || result.GetOrderId() != "订单-02" || result.GetStatus() != wantStatus {
+		t.Fatalf("Kronos discovery call = %v, %v, want %q", result, err, wantStatus)
+	}
+	_, err = orders.GetOrder(ctx, &order.GetOrderRequest{})
+	var failure *kronos.Error
+	if !errors.As(err, &failure) || failure.Code != kronos.InvalidArgument || failure.Reason != "ERROR_REASON_INVALID_ORDER_ID" {
+		t.Fatalf("Kronos blank order ID = %v", err)
 	}
 }
 

@@ -16,6 +16,7 @@ Kronos 的 Core 原语已可通过 Go 包使用。Assistant v1 提供一元 HTTP
 | 在本机复现端到端测试 | 用 Compose 和 Go 测试验证镜像、探针、真实调用与容器关停。[容器交付](../design/assistant-compose.md) |
 | 使用 etcd 分协议注册或发现地址 | `infra/etcd` 提供独立客户端与租约发布。Windows 开发可连接 Linux etcd，官方 Windows 服务端为 Tier 3。[适配契约与实测](../design/service-governance.md#etcd-适配契约) |
 | 用统一入口部署 gRPC 和旧 RPC | 从 Order 的 21 行装配开始，复用同一套业务实现。[Order 服务](../../examples/order/cmd/order/main.go) · [统一服务端](../design/unary-service-api.md) |
+| 按服务名调用 Order | 生成客户端接收一个 Kronos 客户端。默认 gRPC，显式参数选择兼容协议。[Order 客户端命令](../../examples/order/cmd/order-client/main.go) · [发现与连接生命周期](../design/discovered-rpc-client.md) |
 
 ## 验证独立模块
 
@@ -27,6 +28,23 @@ go run ./platform/verify test
 ```
 
 入口读取 `go.work` 内登记的模块，在各自目录关闭工作区执行检查和原生 Go 测试。新增封装模块时用 `go work use ./模块目录` 登记。[Go 验收入口](../design/go-verification.md) · [模块边界](../adr/0004-layer-and-module-boundaries.md)
+
+## 运行 Order
+
+准备可访问的 etcd v3。Order 命令默认连接 `127.0.0.1:2379`，启动 gRPC `127.0.0.1:9090` 和 MicroRPC `127.0.0.1:9091`。可以通过 `KRONOS_ETCD_ENDPOINT`、`KRONOS_ORDER_GRPC`、`KRONOS_ORDER_MICRORPC` 或 `KRONOS_ORDER_ADVERTISE_HOST` 配置实际部署。
+
+```sh
+GOWORK=off go run ./examples/order/cmd/order
+```
+
+在另一个终端执行以下原生 Go 调用。需要连接其他发现名的兼容部署时，加上 `-service <服务名>`。
+
+```sh
+GOWORK=off go run ./examples/order/cmd/order-client -id 订单-01
+GOWORK=off go run ./examples/order/cmd/order-client -protocol micro-v2 -id 订单-01
+```
+
+用 `go run ./platform/verify generate` 生成或更新公开契约，使用独立 etcd 与两版官方旧 SDK 复核双向调用。[Order Proto](../../examples/order/api/kronos/order/v1/order.proto) · [治理验收](../design/service-governance.md)
 
 ## 生成 Assistant 协议
 

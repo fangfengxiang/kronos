@@ -86,8 +86,13 @@ func fixtureGo(t *testing.T, ctx context.Context, directory string, arguments ..
 
 func startUpstreamFixture(t *testing.T, ctx context.Context, binary string) string {
 	t.Helper()
+	return startFixtureProcess(t, ctx, binary, "serve")
+}
+
+func startFixtureProcess(t *testing.T, ctx context.Context, binary string, args ...string) string {
+	t.Helper()
 	readyFile := filepath.Join(t.TempDir(), "address")
-	command := exec.Command(binary, "serve", readyFile)
+	command := exec.Command(binary, append(args, readyFile)...)
 	input, err := command.StdinPipe()
 	if err != nil {
 		t.Fatal(err)

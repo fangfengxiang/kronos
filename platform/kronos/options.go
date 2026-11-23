@@ -6,9 +6,12 @@ import (
 	"context"
 	"errors"
 	"time"
+
+	"github.com/fangfengxiang/kronos/framework/rpc"
 )
 
-// RegistryProvider publishes and resolves instances. Its creator owns it.
+// RegistryProvider publishes and resolves instances within the supplied
+// contexts. Its creator owns it.
 type RegistryProvider interface {
 	Publish(ctx context.Context, name, grpcAddress, microRPCAddress string) (withdraw func(context.Context) error, err error)
 	Lookup(ctx context.Context, name, protocol string) ([]string, error)
@@ -21,6 +24,8 @@ type settings struct {
 	microRPCAddress string
 	advertiseHost   string
 	shutdownTimeout time.Duration
+	protocol        rpc.Protocol
+	callTimeout     time.Duration
 }
 
 // Option configures a Kronos instance.
@@ -56,8 +61,26 @@ func ShutdownTimeout(timeout time.Duration) Option {
 	return func(config *settings) { config.shutdownTimeout = timeout }
 }
 
+const (
+	ProtocolGRPC    = rpc.ProtocolGRPC
+	ProtocolMicroV2 = rpc.ProtocolMicroV2
+)
+
+// WireProtocol identifies a supported or configured client wire protocol.
+type WireProtocol = rpc.Protocol
+
+// Protocol selects the client's wire protocol. The default is standard gRPC.
+func Protocol(protocol WireProtocol) Option {
+	return func(config *settings) { config.protocol = protocol }
+}
+
+// CallTimeout sets the deadline for a call without a caller-supplied deadline.
+func CallTimeout(timeout time.Duration) Option {
+	return func(config *settings) { config.callTimeout = timeout }
+}
+
 func applyOptions(options []Option) (settings, error) {
-	config := settings{shutdownTimeout: 10 * time.Second}
+	config := settings{shutdownTimeout: 10 * time.Second, protocol: ProtocolGRPC, callTimeout: 3 * time.Second}
 	for _, option := range options {
 		if option == nil {
 			return settings{}, errors.New("Kronos options must be non-nil")
