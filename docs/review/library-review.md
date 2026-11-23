@@ -60,3 +60,4 @@
 | 2 恢复后请求观测 | 共享业务入口记录恢复后的错误。真实 gRPC 一元及流式调用各产生一次失败计数、一个结束的错误 span 和一条关联日志。Linux arm64 三轮通过，macOS arm64 通过 Assistant 全部竞态回归。[设计与实测](../design/rpc-handler-recovery.md#实测记录) |
 | 3 MongoDB SRV 启动等待 | DNS 查询进行时，调用者取消或超时即收到原上下文错误。Linux arm64 与 macOS arm64 竞态的适配测试分别五轮通过，隔离网络中的 MongoDB 8.0.38 直连与 TextBackend 进程回归通过。[设计与实测](../design/mongodb-text-profiles.md#实测记录) |
 | 4 旧 RPC 响应边界 | 完整帧恰好 1 MiB 时成功，超限返回可解码的旧 RPC 错误。Linux 两版官方客户端和 Kronos 客户端验证了超限报错、裸编码大响应和双向互通。[设计与实测](../design/go-micro-v2-interop.md#实测与复盘) |
+| 5 厂商 SDK 导入边界 | CI 按 SDK 导入前缀检查适配归属。原生工作区夹具拦截 Kafka 生产导入，放行适配和专用测试导入。Linux arm64 与 macOS arm64 的工具测试和全仓导入检查均通过。[规则与实测](../design/go-verification.md#外部-sdk-归属) |

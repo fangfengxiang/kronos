@@ -32,6 +32,19 @@ func TestAllowedImport(t *testing.T) {
 		{"text backend command to Kratos", textBackend + "/cmd/textbackend", kratos, false},
 		{"text backend contract to gRPC", textBackend, "google.golang.org/grpc", false},
 		{"text backend binding to Kratos", textBackend + "/internal/binding", kratos, true},
+		{"text backend command to Kafka", textBackend + "/cmd/textbackend", "github.com/twmb/franz-go/pkg/kgo", false},
+		{"text backend command to MongoDB", textBackend + "/cmd/textbackend", "go.mongodb.org/mongo-driver/v2/mongo", false},
+		{"assistant command to telemetry", assistant + "/cmd/assistant", "go.opentelemetry.io/otel/trace", false},
+		{"private transport does not own MongoDB", textBackend + "/internal/binding", "go.mongodb.org/mongo-driver/v2/mongo", false},
+		{"Kafka adapter subpackage", kronosModule + "/infra/kafka/internal/client", "github.com/twmb/franz-go/pkg/kgo", true},
+		{"MongoDB adapter", kronosModule + "/infra/mongodb", "go.mongodb.org/mongo-driver/v2/bson", true},
+		{"similar adapter name", kronosModule + "/infra/mongodbextra", "go.mongodb.org/mongo-driver/v2/bson", false},
+		{"similar dependency name", textBackend + "/cmd/textbackend", "github.com/twmb/franz-go-helper", true},
+		{"trace adapter to Kratos instrumentation", kronosModule + "/infra/oteltrace", "github.com/go-kratos/kratos/contrib/otel/v3/tracing", true},
+		{"RPC options to Kratos", kronosModule + "/framework/rpc", kratos, false},
+		{"core to gRPC", kronosModule + "/core/runtime", "google.golang.org/grpc/metadata", false},
+		{"business to legacy upstream SDK", assistant, "github.com/micro/go-micro/v2/client", false},
+		{"business to standard Protobuf", textBackend + "/cmd/textbackend", "google.golang.org/protobuf/proto", true},
 	}
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
@@ -42,13 +55,21 @@ func TestAllowedImport(t *testing.T) {
 	}
 }
 
-func TestDependenciesRejectsCrossLayerImportInWorkspace(t *testing.T) {
+func TestDependenciesRejectsForbiddenProductionImportsInWorkspace(t *testing.T) {
 	root := t.TempDir()
+	const kafkaSDK = "github.com/twmb/franz-go"
+	const kafkaImport = "import _ \"" + kafkaSDK + "/pkg/kgo\"\n"
 	files := map[string]string{
-		"go.mod":                  "module " + kronosModule + "\n\ngo 1.25.0\n",
+		"go.mod":                  "module " + kronosModule + "\n\ngo 1.25.0\n\nrequire " + kafkaSDK + " v0.0.0\nreplace " + kafkaSDK + " => ./sdk\n",
 		"go.work":                 "go 1.25.0\n\nuse .\n",
+		"sdk/go.mod":              "module " + kafkaSDK + "\n\ngo 1.25.0\n",
+		"sdk/pkg/kgo/kafka.go":    "package kgo\n",
 		"infra/source/source.go":  "package source\n",
+		"infra/kafka/adapter.go":  "package kafka\n\n" + kafkaImport,
 		"framework/rpc/caller.go": "package rpc\n\nimport _ \"" + kronosModule + "/infra/source\"\n",
+		"examples/textbackend/cmd/textbackend/main.go":     "package main\n\n" + kafkaImport + "\nfunc main() {}\n",
+		"examples/assistant/cmd/assistant/main.go":         "package main\n\nfunc main() {}\n",
+		"examples/assistant/cmd/assistant/interop_test.go": "package main\n\n" + kafkaImport,
 	}
 	for name, content := range files {
 		path := filepath.Join(root, filepath.FromSlash(name))
@@ -60,7 +81,9 @@ func TestDependenciesRejectsCrossLayerImportInWorkspace(t *testing.T) {
 		}
 	}
 	err := checkDependencies(t.Context(), root)
-	if err == nil || !strings.Contains(err.Error(), "imports forbidden dependency "+kronosModule+"/infra/source") {
-		t.Fatalf("dependency check returned %v, want a forbidden import", err)
+	if err == nil || strings.Count(err.Error(), "imports forbidden dependency") != 2 ||
+		!strings.Contains(err.Error(), kronosModule+"/framework/rpc imports forbidden dependency "+kronosModule+"/infra/source") ||
+		!strings.Contains(err.Error(), kronosModule+"/examples/textbackend/cmd/textbackend imports forbidden dependency "+kafkaSDK+"/pkg/kgo") {
+		t.Fatalf("dependency check returned %v, want the cross-layer import and the production import of Kafka", err)
 	}
 }

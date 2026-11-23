@@ -12,6 +12,31 @@ import (
 
 const kronosModule = "github.com/fangfengxiang/kronos"
 
+const (
+	kratosImportPrefix = "github.com/go-kratos/kratos"
+	grpcImportPrefix   = "google.golang.org/grpc"
+)
+
+// Owners are repository-relative import paths. A nil list reserves an SDK for
+// private transport bindings or test fixtures.
+var sdkOwnersByImportPrefix = map[string][]string{
+	kratosImportPrefix: {"framework/app", "framework/log", "infra/oteltrace", "infra/runtimeprofile"},
+	grpcImportPrefix:   nil,
+	"github.com/aliyun/alibabacloud-oss-go-sdk-v2": {"infra/aliyunoss"},
+	"github.com/cloudflare/tableflip":              {"framework/app"},
+	"github.com/go-kratos/blades":                  {"infra/blades"},
+	"github.com/go-sql-driver/mysql":               {"infra/mysql"},
+	"github.com/hashicorp/consul/api":              {"infra/consul"},
+	"github.com/micro/go-micro":                    nil,
+	"github.com/prometheus/client_golang":          {"infra/prometheus"},
+	"github.com/prometheus/client_model":           {"infra/prometheus"},
+	"github.com/redis/go-redis":                    {"infra/redis"},
+	"github.com/twmb/franz-go":                     {"infra/kafka"},
+	"go.mongodb.org/mongo-driver":                  {"infra/mongodb"},
+	"go.opentelemetry.io/otel":                     {"infra/oteltrace"},
+	"go.opentelemetry.io/proto/otlp":               {"infra/oteltrace"},
+}
+
 func checkDependencies(ctx context.Context, repository string) error {
 	directories, err := workspaceModules(ctx, repository)
 	if err != nil {
@@ -47,14 +72,8 @@ func checkDependencies(ctx context.Context, repository string) error {
 }
 
 func allowedImport(source, dependency string) bool {
-	const examples = kronosModule + "/examples/"
-	if relative, isExample := strings.CutPrefix(source, examples); isExample &&
-		(hasPackagePrefix(dependency, "github.com/go-kratos/kratos") || hasPackagePrefix(dependency, "google.golang.org/grpc")) {
-		service, _, _ := strings.Cut(relative, "/")
-		return hasPackagePrefix(source, examples+service+"/internal/binding") || hasPackagePrefix(source, examples+service+"/internal/wire")
-	}
 	if !hasPackagePrefix(dependency, kronosModule) {
-		return true
+		return allowedExternalImport(source, dependency)
 	}
 	sourceLayer := layerOf(source)
 	targetLayer := layerOf(dependency)
@@ -68,6 +87,28 @@ func allowedImport(source, dependency string) bool {
 	default:
 		return true
 	}
+}
+
+func allowedExternalImport(source, dependency string) bool {
+	const examples = kronosModule + "/examples/"
+	if relative, isExample := strings.CutPrefix(source, examples); isExample &&
+		(hasPackagePrefix(dependency, kratosImportPrefix) || hasPackagePrefix(dependency, grpcImportPrefix)) {
+		service, _, _ := strings.Cut(relative, "/")
+		serviceRoot := examples + service
+		return hasPackagePrefix(source, serviceRoot+"/internal/binding") || hasPackagePrefix(source, serviceRoot+"/internal/wire")
+	}
+	for importPrefix, owners := range sdkOwnersByImportPrefix {
+		if !hasPackagePrefix(dependency, importPrefix) {
+			continue
+		}
+		for _, owner := range owners {
+			if hasPackagePrefix(source, kronosModule+"/"+owner) {
+				return true
+			}
+		}
+		return false
+	}
+	return true
 }
 
 func layerOf(packagePath string) string {
