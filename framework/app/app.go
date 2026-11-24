@@ -42,10 +42,10 @@ type Endpoint struct {
 	Address string
 }
 
-// ReadyHook runs after the listeners start accepting connections. An optional
-// returned function releases published resources before the servers drain,
-// including when the hook also reports an error. Both functions honor their
-// contexts.
+// ReadyHook receives the bound endpoints after the listeners enter their
+// accept loops. An optional returned function releases published resources
+// before the servers drain, including when the hook also reports an error.
+// Both functions honor their contexts.
 type ReadyHook func(context.Context, []Endpoint) (release func(context.Context) error, err error)
 
 // App owns its listeners and serving state. Construct it with New.
@@ -177,14 +177,7 @@ func (application *App) run(ctx context.Context, options runOptions) (runError e
 	}
 
 	var releasePublication func(context.Context) error
-	publishReady := func() error {
-		if options.confirmReady != nil {
-			if err := options.confirmReady(); err != nil {
-				return fmt.Errorf("confirm application readiness: %w", err)
-			}
-		}
-		application.ready.Store(true)
-		close(allowAccept)
+	publish := func() error {
 		if options.readyHook != nil {
 			endpoints := make([]Endpoint, len(servers))
 			for index, server := range servers {
@@ -195,6 +188,25 @@ func (application *App) run(ctx context.Context, options runOptions) (runError e
 			if err != nil {
 				return fmt.Errorf("publish application readiness: %w", err)
 			}
+		}
+		return nil
+	}
+	publishReady := func() error {
+		if options.confirmReady != nil {
+			if err := publish(); err != nil {
+				return err
+			}
+			if err := ctx.Err(); options.readyHook != nil && err != nil {
+				return err
+			}
+			if err := options.confirmReady(); err != nil {
+				return fmt.Errorf("confirm application readiness: %w", err)
+			}
+		}
+		application.ready.Store(true)
+		close(allowAccept)
+		if options.confirmReady == nil {
+			return publish()
 		}
 		return nil
 	}

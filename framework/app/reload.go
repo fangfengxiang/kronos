@@ -24,6 +24,13 @@ type ReloadConfig struct {
 // replacement also triggers graceful shutdown of the current generation.
 // Only one reload-enabled App can run in a process.
 func (application *App) RunWithReload(ctx context.Context, config ReloadConfig, requests <-chan os.Signal) error {
+	return application.RunWithReloadAndReadyHook(ctx, config, requests, nil)
+}
+
+// RunWithReloadAndReadyHook publishes the inherited endpoints before confirming
+// readiness to Tableflip. If publication fails, the previous process keeps
+// serving. A successful publication is released on shutdown or failed handoff.
+func (application *App) RunWithReloadAndReadyHook(ctx context.Context, config ReloadConfig, requests <-chan os.Signal, hook ReadyHook) error {
 	if config.StartupTimeout <= 0 {
 		return errors.New("reload startup timeout must be positive")
 	}
@@ -65,6 +72,7 @@ func (application *App) RunWithReload(ctx context.Context, config ReloadConfig, 
 
 	var listenerConfig net.ListenConfig
 	return application.run(ctx, runOptions{
+		readyHook: hook,
 		listen: func(ctx context.Context, network, address string) (net.Listener, error) {
 			return upgrader.ListenWithCallback(network, address, func(network, address string) (net.Listener, error) {
 				return listenerConfig.Listen(ctx, network, address)

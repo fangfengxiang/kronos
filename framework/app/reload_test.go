@@ -22,6 +22,8 @@ import (
 	"github.com/fangfengxiang/kronos/framework/app"
 )
 
+var errReloadPublicationDenied = errors.New("publication denied")
+
 func TestReloadDrainsAcceptedStream(t *testing.T) {
 	firstListener := listen(t, "127.0.0.1:0")
 	secondListener := listen(t, "127.0.0.1:0")
@@ -93,11 +95,55 @@ func TestReloadDrainsAcceptedStream(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(directory, "start"), nil, 0600); err != nil {
 		t.Fatal(err)
 	}
-	candidate, err := os.ReadFile(candidateFile)
-	if err != nil {
+	readPublishing := func() string {
+		t.Helper()
+		if err := waitForFile(ctx, candidateFile); err != nil {
+			t.Fatal(err)
+		}
+		candidate, err := os.ReadFile(candidateFile)
+		if err != nil {
+			t.Fatal(err)
+		}
+		pid := string(candidate)
+		if err := waitForFile(ctx, filepath.Join(directory, "publishing-"+pid)); err != nil {
+			t.Fatal(err)
+		}
+		return pid
+	}
+	assertCurrentPID := func() {
+		t.Helper()
+		response := get("/pid")
+		body, err := io.ReadAll(response.Body)
+		response.Body.Close()
+		if err != nil || string(body) != strconv.Itoa(initialPID) {
+			t.Fatalf("request while replacing reached %q, %v, want %d", body, err, initialPID)
+		}
+	}
+	rejectedPID := readPublishing()
+	assertCurrentPID()
+	for _, name := range []string{"reject-" + rejectedPID, "confirm-" + rejectedPID} {
+		if err := os.WriteFile(filepath.Join(directory, name), nil, 0600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for _, name := range []string{"released-" + rejectedPID, "reload.failed"} {
+		if err := waitForFile(ctx, filepath.Join(directory, name)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	assertCurrentPID()
+	if err := os.Remove(candidateFile); err != nil {
 		t.Fatal(err)
 	}
-	replacementPID, err := strconv.Atoi(string(candidate))
+	if err := command.Process.Signal(syscall.SIGHUP); err != nil {
+		t.Fatal(err)
+	}
+	candidate := readPublishing()
+	assertCurrentPID()
+	if err := os.WriteFile(filepath.Join(directory, "confirm-"+candidate), nil, 0600); err != nil {
+		t.Fatal(err)
+	}
+	replacementPID, err := strconv.Atoi(candidate)
 	if err != nil || replacementPID <= 0 || replacementPID == initialPID {
 		t.Fatalf("invalid replacement PID %q", candidate)
 	}
@@ -107,8 +153,11 @@ func TestReloadDrainsAcceptedStream(t *testing.T) {
 	response := get("/pid")
 	body, err := io.ReadAll(response.Body)
 	response.Body.Close()
-	if err != nil || string(body) != string(candidate) {
+	if err != nil || string(body) != candidate {
 		t.Fatalf("request after old listener retired reached %q, %v", body, err)
+	}
+	if err := waitForFile(ctx, filepath.Join(directory, "released-"+strconv.Itoa(initialPID))); err != nil {
+		t.Fatal(err)
 	}
 	select {
 	case err := <-result:
@@ -190,9 +239,38 @@ func TestReloadHelperProcess(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	err = application.RunWithReload(ctx, app.ReloadConfig{StartupTimeout: 5 * time.Second, PIDFile: pidFile,
-		OnError: func(err error) { t.Log(err) }}, reloads)
+	hook := func(ctx context.Context, endpoints []app.Endpoint) (func(context.Context) error, error) {
+		if len(endpoints) != 2 || endpoints[0].Address != os.Getenv("KRONOS_RELOAD_TEST_FIRST") ||
+			endpoints[1].Address != os.Getenv("KRONOS_RELOAD_TEST_SECOND") {
+			return nil, fmt.Errorf("unexpected publication endpoints: %v", endpoints)
+		}
+		release := func(context.Context) error {
+			return os.WriteFile(filepath.Join(directory, "released-"+pid), nil, 0600)
+		}
+		if isReplacement {
+			if err := os.WriteFile(filepath.Join(directory, "publishing-"+pid), nil, 0600); err != nil {
+				return release, err
+			}
+			if err := waitForFile(ctx, filepath.Join(directory, "confirm-"+pid)); err != nil {
+				return release, err
+			}
+			if _, err := os.Stat(filepath.Join(directory, "reject-"+pid)); err == nil {
+				return release, errReloadPublicationDenied
+			}
+		}
+		return release, nil
+	}
+	err = application.RunWithReloadAndReadyHook(ctx, app.ReloadConfig{StartupTimeout: 5 * time.Second, PIDFile: pidFile,
+		OnError: func(err error) {
+			t.Log(err)
+			if markerError := os.WriteFile(filepath.Join(directory, "reload.failed"), nil, 0600); markerError != nil {
+				t.Error(markerError)
+			}
+		}}, reloads, hook)
 	if err != nil {
+		if isReplacement && errors.Is(err, errReloadPublicationDenied) {
+			return
+		}
 		t.Fatal(err)
 	}
 }

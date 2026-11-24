@@ -10,6 +10,14 @@
 
 ## 取舍与职责
 
+### 带发布的重载交接
+
+配置注册中心的应用在候选进程通过启动检查后，先发布已绑定的端点，再向 Tableflip 确认候选就绪。候选等待发布时由旧进程继续处理继承地址上的流量。发布失败时退出候选、回收它取得的资源并保留旧进程。发布成功后打开候选监听的接纳门，旧进程撤销自己的发布并在预算内排空。如果发布之后的确认失败，调用候选的发布释放函数。
+
+`framework/app.RunWithReloadAndReadyHook` 复用现有发布、监听接纳门和 Tableflip 交接。仅使用普通运行或原重载入口的应用沿用各自的就绪时序。验收需用真实子进程验证候选发布前旧进程仍接收请求，候选发布失败后仍可调用旧进程，随后新的候选接管相同地址，旧进程已接纳的 SSE 正常完成。[Tableflip](https://pkg.go.dev/github.com/cloudflare/tableflip@v1.2.3)
+
+Go 1.25.0、Ubuntu 24.04 Linux arm64 的 `GOWORK=off go -C framework/app test -count=5 -run '^TestReloadDrainsAcceptedStream$' .` 通过。第一个候选在发布失败时释放自己的资源，旧进程继续接受请求。第二个候选接管两个继承地址，旧进程释放发布并完整交付先前的 SSE。模块常规回归与 Assistant 原命令重载也通过。[真实进程夹具](../../framework/app/reload_test.go)
+
 沿用参考入口的显式信号处理与摘流顺序，以就绪反馈和共同的关停预算控制交接。Cloudflare tableflip 负责文件描述符继承、候选进程和就绪确认。Kronos 负责同一应用所有监听器的就绪门槛与关停。Kratos 负责各传输的排空。已有连接由接收它的进程收尾，后续连接可由新进程接收。[Cloudflare tableflip](https://pkg.go.dev/github.com/cloudflare/tableflip@v1.2.3) · [NGINX 进程交接](https://nginx.org/en/docs/control.html#upgrade)
 
 监听器接力维持 TCP 监听队列。关停窗口内还未进入处理器的请求仍受传输的连接关闭语义约束，客户端可按原有幂等与重连规则处理。
