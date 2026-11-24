@@ -59,19 +59,20 @@ type ObservabilityConfig struct {
 }
 
 type settings struct {
-	name            string
-	registry        RegistryProvider
-	grpcAddress     string
-	microRPCAddress string
-	diagnostics     string
-	scrape          http.Handler
-	metrics         RPCMetrics
-	tracer          RPCTracer
-	logger          *slog.Logger
-	advertiseHost   string
-	shutdownTimeout time.Duration
-	protocol        rpc.Protocol
-	callTimeout     time.Duration
+	name             string
+	registry         RegistryProvider
+	grpcAddress      string
+	microRPCAddress  string
+	diagnostics      string
+	scrape           http.Handler
+	scrapeRPCMetrics bool
+	metrics          RPCMetrics
+	tracer           RPCTracer
+	logger           *slog.Logger
+	advertiseHost    string
+	shutdownTimeout  time.Duration
+	protocol         rpc.Protocol
+	callTimeout      time.Duration
 }
 
 func rpcLogger(logger *slog.Logger) *slog.Logger {
@@ -104,24 +105,24 @@ func MicroRPC(address string) Option {
 	return func(config *settings) { config.microRPCAddress = address }
 }
 
-// Metrics borrows an optional unary RPC observer for the app or client.
+// Metrics borrows a unary RPC observer for the app or client. Nil disables it.
 func Metrics(metrics RPCMetrics) Option {
 	return func(config *settings) { config.metrics = metrics }
 }
 
-// Tracing borrows an optional tracer for the app or client.
+// Tracing borrows a tracer for the app or client. Nil disables it.
 func Tracing(tracer RPCTracer) Option {
 	return func(config *settings) { config.tracer = tracer }
 }
 
-// Observability applies the configured signals. If DiagnosticsAddress is set,
-// Metrics is also served at /metrics. A client uses the observers and logger
-// without starting a diagnostics listener.
+// Observability applies nonempty fields. When it selects DiagnosticsAddress,
+// the final RPC metrics observer also serves /metrics if it is an http.Handler.
+// A client uses the observers and logger without starting a diagnostics listener.
 func Observability(observers ObservabilityConfig) Option {
 	return func(config *settings) {
 		if observers.DiagnosticsAddress != "" {
 			config.diagnostics = observers.DiagnosticsAddress
-			config.scrape = observers.Metrics
+			config.scrapeRPCMetrics = true
 		}
 		if observers.Metrics != nil {
 			config.metrics = observers.Metrics
@@ -135,12 +136,14 @@ func Observability(observers ObservabilityConfig) Option {
 	}
 }
 
-// Diagnostics configures an HTTP listener for liveness, readiness and an
-// optional /metrics handler. It is never published for service discovery.
+// Diagnostics configures an HTTP listener for liveness and readiness, with an
+// explicit /metrics handler independent of Metrics. An empty address disables
+// diagnostics. The listener is excluded from service discovery.
 func Diagnostics(address string, scrape http.Handler) Option {
 	return func(config *settings) {
 		config.diagnostics = address
 		config.scrape = scrape
+		config.scrapeRPCMetrics = false
 	}
 }
 
@@ -179,6 +182,9 @@ func applyOptions(options []Option) (settings, error) {
 			return settings{}, errors.New("Kronos options must be non-nil")
 		}
 		option(&config)
+	}
+	if config.scrapeRPCMetrics {
+		config.scrape, _ = config.metrics.(http.Handler)
 	}
 	return config, nil
 }

@@ -37,8 +37,8 @@ func TestOrderWithdrawsBeforeBothProtocolsDrain(t *testing.T) {
 	diagnostics := availableDiagnosticAddress(t)
 	diagnosticClient := newDiagnosticClient(t)
 	running := runOrderReplica(t, registry, name, implementation, kronos.Observability(kronos.ObservabilityConfig{
-		DiagnosticsAddress: diagnostics, Metrics: metrics, Logger: logger,
-	}))
+		DiagnosticsAddress: diagnostics, Metrics: prometheus.NewServiceRPCMetrics(), Logger: logger,
+	}), kronos.Metrics(metrics))
 	waitForInstances(t, registry.Registry, name, kronos.ProtocolGRPC, 1)
 	initial := diagnosticGET(t, diagnosticClient, diagnostics, "/metrics", http.StatusOK)
 	for _, protocol := range orderProtocols {

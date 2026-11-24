@@ -12,6 +12,19 @@ Order 维护者需要区分实例仍在运行、正在接纳请求和已在 etcd
 
 各字段按需配置，原有 `Metrics`、`Diagnostics` 和 `Tracing` 选项继续服务于需要单独接线的调用方。应用命令可为本进程的第三方组件配置默认日志器。通过真实双协议调用核对指标和 Trace，使用独立日志输出验证实例路由和故障关联。[Go slog](https://pkg.go.dev/log/slog@go1.25.0) · [OpenTelemetry Go](https://opentelemetry.io/docs/languages/go/instrumentation/)
 
+### 选项组合
+
+Order 等一元应用可以在观测配置之后追加部署选项。指标写入和抓取的配置分别具有明确的所有者。沿用函数选项顺序处理，每个字段采用最后一次赋值，`Observability` 只写入非空字段。
+
+| 设置 | 生效规则 |
+| --- | --- |
+| `Metrics(observer)` | 选择最终 RPC 指标观察器；`nil` 停止记录。 |
+| `Tracing(tracer)` | 选择最终追踪器；`nil` 停止追踪。 |
+| `Observability` 的非空 `DiagnosticsAddress` | 启用探针，选项处理完毕后从最终 RPC 指标观察器取得 HTTP handler。最终观察器为 nil 或未实现 handler 时只启用探针。 |
+| `Diagnostics(address, handler)` | 明确选择监听与抓取 handler。空地址关闭诊断，nil handler 只暴露探针。后续独立指标和追踪选项只改变记录目标；后续带地址的 `Observability` 可改回从最终观察器取得 handler。 |
+
+客户端仍只使用指标、追踪和日志。应用负责诊断监听。注入的观察器及 handler 继续由创建方管理，登记失败仍在监听前返回。沿用现有组合入口，只在选项应用完毕后解析一次派生的抓取 handler。需要证实合法的独立抓取仍可配置，并通过同一生成绑定实测 gRPC 与 MicroRPC 的写入和抓取使用最终实例。若需恢复既有的双目标行为，显式传入 `Diagnostics(address, handler)` 和 `Metrics(observer)`。
+
 ## 信号及含义
 
 | 信号 | 记录范围 |
@@ -38,6 +51,8 @@ Order 维护者需要区分实例仍在运行、正在接纳请求和已在 etcd
 - 使用实际 etcd、Order 进程与 HTTP OTLP 接收端。分协议完成业务成功和稳定失败，核对客户端与服务端 span 的父子关系、JSON 日志中的 trace/span ID，以及双方计数。查询无实例时验证客户端 span 和零发送次数，并确认没有服务端 span。
 
 ## 指标与探针实测
+
+- Go 1.25.0、Ubuntu 24.04 Linux amd64 与官方 etcd v3.6.16 运行 `GOWORK=off go -C platform/kronos test -count=1 -v ./...` 和 `GOWORK=off go test -tags=interop,etcd_interop -count=1 -v ./test/interop/microv2`，默认回归通过，需另配证书的 mTLS 用例跳过。摘流测试在 `Observability` 之后替换指标实例，从诊断端口观察两协议的初始、在途及关停状态。修复前的选项测试复现五个组合偏差，修复后的 12 个组合子用例及独立追踪与日志测试均通过。[实际订单](../../test/interop/microv2/drain_test.go) · [选项回归](../../platform/kronos/options_test.go)
 
 - Go 1.25.0、Ubuntu 24.04 Linux amd64、官方 etcd v3.6.16 执行 `GOWORK=off go test -tags=interop,etcd_interop -count=1 -v ./test/interop/microv2`。Order 命令启用实际诊断端口，两协议的成功数、错误数与耗时样本均符合调用记录。摘流测试在两个协议各有一个在途调用时抓取指标。进入摘流时，同一 HTTP 连接观察到 `/livez` 200、`/readyz` 503。调用返回后客户端和服务端的在途数归零，三个监听均可重新绑定。[命令验收](../../test/interop/microv2/etcd_test.go) · [摘流验收](../../test/interop/microv2/drain_test.go)
 - macOS arm64 通过 `go run ./platform/verify deps`、`GOWORK=off go -C infra/prometheus test -race ./...`、`GOWORK=off go -C platform/kronos test -race ./...` 和 `GOWORK=off go test -race ./examples/order/...`。Order 核心装配 22 行。[指标实现](../../infra/prometheus/rpc.go) · [行数断言](../../examples/order/cmd/order/main_test.go)
