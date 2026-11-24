@@ -6,6 +6,7 @@ import (
 	"context"
 	"crypto/rand"
 	"errors"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -35,18 +36,25 @@ func TestOrderThroughOfficialRegistryAndClients(t *testing.T) {
 	t.Cleanup(func() { _ = registry.Close() })
 
 	serviceName := "go.micro.srv.order." + rand.Text()
-	process := startOrderProcess(t, endpoint, serviceName)
+	diagnostics := availableDiagnosticAddress(t)
+	process := startOrderProcess(t, endpoint, serviceName, "KRONOS_ORDER_DIAGNOSTICS="+diagnostics)
 	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
 	grpcAddress, microAddress := waitForOrderAddresses(t, ctx, registry, serviceName, process)
 	cancel()
 	if grpcAddress == microAddress {
 		t.Fatalf("Order published the same address for both protocols: %s", grpcAddress)
 	}
+	diagnosticClient := newDiagnosticClient(t)
+	diagnosticGET(t, diagnosticClient, diagnostics, "/livez", http.StatusOK)
+	diagnosticGET(t, diagnosticClient, diagnostics, "/readyz", http.StatusOK)
 	assertOrderOverGRPC(t, grpcAddress)
 	orderClientBinary := buildOrderCommand(t, "order-client")
 	t.Run("Kronos clients to Order", func(t *testing.T) {
 		assertTypedOrder(t, registry, serviceName, "confirmed")
 		assertTypedOrder(t, registry, serviceName, "confirmed", kronos.Protocol(kronos.ProtocolMicroV2))
+		sample := diagnosticGET(t, diagnosticClient, diagnostics, "/metrics", http.StatusOK)
+		assertOrderOutcomeMetrics(t, sample, kronos.ProtocolGRPC, "server", 2, 2)
+		assertOrderOutcomeMetrics(t, sample, kronos.ProtocolMicroV2, "server", 1, 1)
 		assertOrderClientCommand(t, orderClientBinary, endpoint, serviceName, "confirmed")
 		assertOrderClientCommand(t, orderClientBinary, endpoint, serviceName, "confirmed", "-protocol", "micro-v2")
 	})
@@ -173,14 +181,16 @@ func buildOrderCommand(t *testing.T, name string) string {
 	return binary
 }
 
-func startOrderProcess(t *testing.T, endpoint, serviceName string) *orderProcess {
+func startOrderProcess(t *testing.T, endpoint, serviceName string, environment ...string) *orderProcess {
 	t.Helper()
 	binary := buildOrderCommand(t, "order")
 	process := &orderProcess{command: exec.Command(binary), done: make(chan struct{})}
 	process.command.Env = append(os.Environ(),
 		"KRONOS_ETCD_ENDPOINT="+endpoint, "KRONOS_ORDER_NAME="+serviceName,
 		"KRONOS_ORDER_GRPC=127.0.0.1:0", "KRONOS_ORDER_MICRORPC=127.0.0.1:0", "KRONOS_ORDER_ADVERTISE_HOST=",
+		"KRONOS_ORDER_DIAGNOSTICS=",
 	)
+	process.command.Env = append(process.command.Env, environment...)
 	output, err := os.CreateTemp(t.TempDir(), "order-log")
 	if err != nil {
 		t.Fatal(err)

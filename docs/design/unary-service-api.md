@@ -22,6 +22,6 @@ Order 命令通过 `platform/kronos` 组合发现名、显式注入的 registry 
 
 ## 实测
 
-- Order 的 `run` 为 21 行。原生 Go 测试固定行数，核对绑定缺失、重复服务和 Protobuf 消息不匹配的失败。[Order 命令](../../examples/order/cmd/order/main.go) · [装配测试](../../examples/order/cmd/order/main_test.go) · [注册测试](../../examples/order/service_test.go)
+- Order 的 `run` 为 22 行。原生 Go 测试校验行数上限，并核对绑定缺失、重复服务和 Protobuf 消息不匹配的失败。[Order 命令](../../examples/order/cmd/order/main.go) · [装配测试](../../examples/order/cmd/order/main_test.go) · [注册测试](../../examples/order/service_test.go)
 - Go 1.25.0、Ubuntu 24.04 Linux arm64，运行 `GOWORK=off go test -tags=interop,etcd_interop -count=1 -v ./test/interop/microv2`。以真实 etcd v3.6.16 启动 Order 子进程。原生 gRPC 和 v2.0.0、v2.9.1 官方客户端通过各自地址收到同一订单及预期的无效 ID 错误。官方旧客户端通过服务名、以两种编码调用，Registry 只返回兼容端口。发送 `SIGTERM` 后进程以状态零退出，两个地址均消失。[Order 进程验收](../../test/interop/microv2/etcd_test.go)
 - Linux 的 `go run ./platform/verify proto` 和 `go run ./platform/verify deps` 通过。macOS arm64 的全工作区 Go 竞态测试通过。Assistant 的 Linux Compose 四入口和关停回归通过。[原生 Go 验收](go-verification.md)

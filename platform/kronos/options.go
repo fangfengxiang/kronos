@@ -5,6 +5,7 @@ package kronos
 import (
 	"context"
 	"errors"
+	"net/http"
 	"time"
 
 	"github.com/fangfengxiang/kronos/framework/rpc"
@@ -17,11 +18,20 @@ type RegistryProvider interface {
 	Lookup(ctx context.Context, name, protocol string) ([]string, error)
 }
 
+// RPCMetrics observes one completed unary call at a client or server boundary.
+// BeginRPC may return nil for a method the observer does not record.
+type RPCMetrics interface {
+	BeginRPC(operation, protocol, side string) func(failed bool, duration time.Duration)
+}
+
 type settings struct {
 	name            string
 	registry        RegistryProvider
 	grpcAddress     string
 	microRPCAddress string
+	diagnostics     string
+	scrape          http.Handler
+	metrics         RPCMetrics
 	advertiseHost   string
 	shutdownTimeout time.Duration
 	protocol        rpc.Protocol
@@ -49,6 +59,20 @@ func GRPC(address string) Option {
 // MicroRPC configures a go-micro v2 unary RPC listener.
 func MicroRPC(address string) Option {
 	return func(config *settings) { config.microRPCAddress = address }
+}
+
+// Metrics borrows an optional unary RPC observer for the app or client.
+func Metrics(metrics RPCMetrics) Option {
+	return func(config *settings) { config.metrics = metrics }
+}
+
+// Diagnostics configures an HTTP listener for liveness, readiness and an
+// optional /metrics handler. It is never published for service discovery.
+func Diagnostics(address string, scrape http.Handler) Option {
+	return func(config *settings) {
+		config.diagnostics = address
+		config.scrape = scrape
+	}
 }
 
 // AdvertiseHost supplies the host that callers can reach on bound ports.

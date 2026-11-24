@@ -6,12 +6,12 @@ import (
 	"fmt"
 	"log/slog"
 	"net"
+	"net/http"
 	"net/netip"
 	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
-	"time"
 
 	"github.com/fangfengxiang/kronos/framework/app"
 	"github.com/fangfengxiang/kronos/framework/rpc"
@@ -99,6 +99,17 @@ func (application *App) Run(ctx context.Context) error {
 				return transport.MicroRPCServer(listener, config.name, application.observeServices(services, rpc.ProtocolMicroV2, isReady))
 			}})
 	}
+	if config.diagnostics != "" {
+		bindings = append(bindings, app.Binding{Name: "diagnostics", Address: config.diagnostics,
+			Build: func(listener net.Listener) (app.Server, error) {
+				mux := http.NewServeMux()
+				if config.scrape != nil {
+					mux.Handle("GET /metrics", config.scrape)
+				}
+				mux.Handle("/", engine.Probes())
+				return transport.HTTPServer(listener, mux), nil
+			}})
+	}
 
 	engine, err := app.New(app.Config{ShutdownTimeout: config.shutdownTimeout}, bindings...)
 	if err != nil {
@@ -113,6 +124,9 @@ func (application *App) Run(ctx context.Context) error {
 func (application *App) publish(ctx context.Context, endpoints []app.Endpoint) (func(context.Context) error, error) {
 	var grpcAddress, microAddress string
 	for _, endpoint := range endpoints {
+		if endpoint.Name != string(rpc.ProtocolGRPC) && endpoint.Name != string(rpc.ProtocolMicroV2) {
+			continue
+		}
 		host, port, err := net.SplitHostPort(endpoint.Address)
 		if err != nil {
 			return nil, err
@@ -152,15 +166,15 @@ func (application *App) observeServices(services []transport.Service, protocol r
 
 func (application *App) observe(observation rpcObservation, ready func() bool, invoke unaryCall) unaryCall {
 	return func(ctx context.Context, request proto.Message) (proto.Message, error) {
-		started := time.Now()
+		completion := observation.begin(application.config.metrics, "server")
 		if !ready() {
 			err := &rpc.Error{Code: rpc.Unavailable, Reason: rpc.ServiceUnavailableReason, Message: "service is unavailable"}
-			observation.finished(ctx, "rpc_finished", started, err, slog.Int64("in_flight", application.inFlight.Load()))
+			observation.finished(ctx, "rpc_finished", completion.finish(err), err, slog.Int64("in_flight", application.inFlight.Load()))
 			return nil, err
 		}
 		observation.started(ctx, application.inFlight.Add(1))
 		response, err := invoke(ctx, request)
-		observation.finished(ctx, "rpc_finished", started, err, slog.Int64("in_flight", application.inFlight.Add(-1)))
+		observation.finished(ctx, "rpc_finished", completion.finish(err), err, slog.Int64("in_flight", application.inFlight.Add(-1)))
 		return response, err
 	}
 }

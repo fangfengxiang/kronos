@@ -59,6 +59,7 @@
 | T12 | 发布、监听、连接及后台查询均可释放 | [资源所有权](../architecture/rpc-system.md#故障如何跨边界传播) | [租约](../../infra/etcd/publication.go) · [连接](../../platform/kronos/discovery.go) | [租约](../../infra/etcd/integration_test.go) · [监听](../../test/interop/microv2/drain_test.go) · [查询与连接](../../platform/kronos/discovery_test.go) |
 | T13 | 业务使用 Kronos 与 Protobuf 公开契约 | [依赖方向](../adr/0004-layer-and-module-boundaries.md#依赖方向与注入) | [导入规则](../../platform/verify/dependencies.go) | [生产依赖对照](../../platform/verify/dependencies_test.go) |
 | T14 | CI 在独立 Linux 环境复现原生 Go 验收 | [本地与 CI 命令](go-verification.md#order-治理验收) | [Linux 工作流](../../.github/workflows/ci.yml) | [近次完整验收](https://github.com/fangfengxiang/kronos/actions/runs/45306567631) |
+| T15 | 指标区分双协议与双方角色，探针反映接纳状态 | [Order 运行观测](order-diagnostics.md) | [观测点](../../platform/kronos/observation.go) · [指标适配](../../infra/prometheus/rpc.go) | [实际探针及摘流指标](../../test/interop/microv2/drain_test.go) · [命令抓取](../../test/interop/microv2/etcd_test.go) |
 
 ## 实测记录
 

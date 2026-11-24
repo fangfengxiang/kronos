@@ -5,7 +5,6 @@ import (
 	"errors"
 	"log/slog"
 	"sync"
-	"time"
 
 	"github.com/fangfengxiang/kronos/framework/rpc"
 	"github.com/fangfengxiang/kronos/platform/kronos/internal/transport"
@@ -115,7 +114,7 @@ func (client *Client) Invoke(ctx context.Context, method protoreflect.MethodDesc
 		MicroMethod: string(service.Name()) + "." + string(method.Name()),
 	}
 	observation := rpcObservation{service: serviceName, operation: operation.GRPCMethod, protocol: client.config.protocol}
-	started := time.Now()
+	completion := observation.begin(client.config.metrics, "client")
 	transportAttempts := 0
 	defer func() {
 		if callError != nil && ctx.Err() != nil {
@@ -128,7 +127,7 @@ func (client *Client) Invoke(ctx context.Context, method protoreflect.MethodDesc
 				callError = ctx.Err()
 			}
 		}
-		observation.finished(ctx, "rpc_client_finished", started, callError, slog.Int("attempts", transportAttempts))
+		observation.finished(ctx, "rpc_client_finished", completion.finish(callError), callError, slog.Int("attempts", transportAttempts))
 	}()
 	if err := client.resolve(ctx, serviceName); err != nil {
 		return err

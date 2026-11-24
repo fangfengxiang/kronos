@@ -15,7 +15,7 @@ Kronos 的 Core 原语已可通过 Go 包使用。Assistant v1 提供一元 HTTP
 | 按用户时区展示时刻或归档日报 | 用 `core/timezone` 解析 IANA 时区并计算当地日期。精简部署可通过 `-tags timetzdata` 内嵌规则。[Core 时区](../design/core-timezone.md) · [日报日期示例](../../examples/reportdate) |
 | 在本机复现端到端测试 | 用 Compose 和 Go 测试验证镜像、探针、真实调用与容器关停。[容器交付](../design/assistant-compose.md) |
 | 使用 etcd 分协议注册或发现地址 | `infra/etcd` 提供独立客户端与租约发布。Windows 开发可连接 Linux etcd，官方 Windows 服务端为 Tier 3。[适配契约与实测](../design/service-governance.md#etcd-适配契约) |
-| 用统一入口部署 gRPC 和旧 RPC | 从 Order 的 21 行装配开始，复用同一套业务实现。[Order 服务](../../examples/order/cmd/order/main.go) · [统一服务端](../design/unary-service-api.md) |
+| 用统一入口部署 gRPC 和旧 RPC | 从 Order 的 22 行装配开始，复用同一套业务实现。[Order 服务](../../examples/order/cmd/order/main.go) · [统一服务端](../design/unary-service-api.md) |
 | 按服务名调用 Order | 生成客户端接收一个 Kronos 客户端。默认 gRPC，显式参数选择兼容协议。[Order 客户端命令](../../examples/order/cmd/order-client/main.go) · [发现与连接生命周期](../design/discovered-rpc-client.md) |
 
 ## 验证独立模块
@@ -55,6 +55,8 @@ GOWORK=off go run ./examples/order/cmd/order-client -protocol micro-v2 -id 订�
 ```
 
 两个命令均返回 `订单-01 confirmed`。使用自定义服务名时在客户端带上 `-service`。修改 Order 的 Proto 后执行 `go run ./platform/verify generate` 更新公开契约。[Order Proto](../../examples/order/api/kronos/order/v1/order.proto) · [治理验收](../design/service-governance.md)
+
+在 Order 进程设置 `KRONOS_ORDER_DIAGNOSTICS=127.0.0.1:9190` 可启用 `/livez`、`/readyz` 和 Prometheus `/metrics`。诊断端口单独绑定。观察可发现状态时按对应协议查询 etcd，再执行 Order 调用确认业务结果。[Order 运行观测](../design/order-diagnostics.md)
 
 以下示例单独启动 Order 与两版官方 go-micro v2。旧客户端发现并调用 Order，Order 客户端命令显式用 `micro-v2` 查找旧服务端，返回 `订单-03 legacy-confirmed`。
 

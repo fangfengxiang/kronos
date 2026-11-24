@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"slices"
 	"strings"
 	"time"
 
@@ -32,10 +33,35 @@ type outcomeMetrics struct {
 // NewRequestMetrics prepares request counts and latency histograms for the
 // supplied operation names. Each name must be non-empty and unique.
 func NewRequestMetrics(operations ...string) (*RequestMetrics, error) {
-	if len(operations) == 0 {
-		return nil, errors.New("request metrics require at least one operation")
+	if err := validateOperations(operations); err != nil {
+		return nil, err
 	}
-	labels := []string{"operation", "outcome"}
+	counts, durations := requestVectors("operation", "outcome")
+	byOperation := make(map[string]operationMetrics, len(operations))
+	for _, operation := range operations {
+		byOperation[operation] = requestOutcomes(counts, durations, operation)
+	}
+	return &RequestMetrics{operations: byOperation, scrape: scrapeHandler(counts, durations)}, nil
+}
+
+func validateOperations(operations []string) error {
+	if len(operations) == 0 {
+		return errors.New("request metrics require at least one operation")
+	}
+	seen := make(map[string]struct{}, len(operations))
+	for _, operation := range operations {
+		if strings.TrimSpace(operation) == "" {
+			return errors.New("request metric operation is empty")
+		}
+		if _, exists := seen[operation]; exists {
+			return fmt.Errorf("duplicate request metric operation %q", operation)
+		}
+		seen[operation] = struct{}{}
+	}
+	return nil
+}
+
+func requestVectors(labels ...string) (*prom.CounterVec, *prom.HistogramVec) {
 	counts := prom.NewCounterVec(prom.CounterOpts{
 		Name: "kronos_rpc_requests_total",
 		Help: "Completed application requests.",
@@ -44,40 +70,45 @@ func NewRequestMetrics(operations ...string) (*RequestMetrics, error) {
 		Name: "kronos_rpc_request_duration_seconds",
 		Help: "Application request duration in seconds.",
 	}, labels)
-	byOperation := make(map[string]operationMetrics, len(operations))
-	for _, operation := range operations {
-		if strings.TrimSpace(operation) == "" {
-			return nil, errors.New("request metric operation is empty")
-		}
-		if _, exists := byOperation[operation]; exists {
-			return nil, fmt.Errorf("duplicate request metric operation %q", operation)
-		}
-		byOperation[operation] = operationMetrics{
-			success: outcomeMetrics{
-				count:    counts.WithLabelValues(operation, "success"),
-				duration: durations.WithLabelValues(operation, "success"),
-			},
-			failure: outcomeMetrics{
-				count:    counts.WithLabelValues(operation, "error"),
-				duration: durations.WithLabelValues(operation, "error"),
-			},
-		}
+	return counts, durations
+}
+
+func requestOutcomes(counts *prom.CounterVec, durations *prom.HistogramVec, labels ...string) operationMetrics {
+	successLabels := slices.Concat(labels, []string{"success"})
+	errorLabels := slices.Concat(labels, []string{"error"})
+	return operationMetrics{
+		success: outcomeMetrics{
+			count: counts.WithLabelValues(successLabels...), duration: durations.WithLabelValues(successLabels...),
+		},
+		failure: outcomeMetrics{
+			count: counts.WithLabelValues(errorLabels...), duration: durations.WithLabelValues(errorLabels...),
+		},
 	}
+}
+
+func scrapeHandler(collectors ...prom.Collector) http.Handler {
 	registry := prom.NewRegistry()
-	registry.MustRegister(counts, durations)
-	return &RequestMetrics{operations: byOperation, scrape: promhttp.HandlerFor(registry, promhttp.HandlerOpts{})}, nil
+	registry.MustRegister(collectors...)
+	return promhttp.HandlerFor(registry, promhttp.HandlerOpts{})
 }
 
 // Record adds one observation. Unknown operations and negative durations are
 // ignored.
 func (metrics *RequestMetrics) Record(operation string, failed bool, duration time.Duration) {
 	registered, exists := metrics.operations[operation]
-	if !exists || duration < 0 {
+	if !exists {
 		return
 	}
-	outcome := registered.success
+	registered.record(failed, duration)
+}
+
+func (metrics operationMetrics) record(failed bool, duration time.Duration) {
+	if duration < 0 {
+		return
+	}
+	outcome := metrics.success
 	if failed {
-		outcome = registered.failure
+		outcome = metrics.failure
 	}
 	outcome.count.Inc()
 	outcome.duration.Observe(duration.Seconds())

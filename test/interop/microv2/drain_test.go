@@ -7,6 +7,8 @@ import (
 	"crypto/rand"
 	"errors"
 	"net"
+	"net/http"
+	"net/http/httptest"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -14,6 +16,7 @@ import (
 
 	"github.com/fangfengxiang/kronos/examples/order"
 	"github.com/fangfengxiang/kronos/infra/etcd"
+	"github.com/fangfengxiang/kronos/infra/prometheus"
 	"github.com/fangfengxiang/kronos/platform/kronos"
 )
 
@@ -30,20 +33,35 @@ func TestOrderWithdrawsBeforeBothProtocolsDrain(t *testing.T) {
 	implementation := newWaitingOrder()
 	finishCalls := sync.OnceFunc(func() { close(implementation.release) })
 	defer finishCalls()
-	running := runOrderReplica(t, registry, name, implementation)
+	metrics, err := prometheus.NewRPCMetrics(orderOperation)
+	if err != nil {
+		t.Fatal(err)
+	}
+	diagnostics := availableDiagnosticAddress(t)
+	diagnosticClient := newDiagnosticClient(t)
+	running := runOrderReplica(t, registry, name, implementation, kronos.Metrics(metrics), kronos.Diagnostics(diagnostics, metrics))
 	callContext, cancelCalls := context.WithTimeout(t.Context(), 8*time.Second)
 	defer cancelCalls()
 
 	var calls []pendingOrder
 	for _, protocol := range orderProtocols {
 		address := waitForInstances(t, registry.Registry, name, protocol, 1)[0]
-		orders := newDiscoveredOrder(t, registry, name, protocol)
+		orders := newDiscoveredOrder(t, registry, name, protocol, kronos.Metrics(metrics))
 		result := beginOrderCall(callContext, orders, string(protocol))
 		serverContext := awaitOrderSignal(t, implementation.entered)
 		calls = append(calls, pendingOrder{orders: orders, result: result, serverContext: serverContext, address: address})
 	}
+	diagnosticGET(t, diagnosticClient, diagnostics, "/readyz", http.StatusOK)
+	sample := diagnosticGET(t, diagnosticClient, diagnostics, "/metrics", http.StatusOK)
+	for _, protocol := range orderProtocols {
+		for _, side := range []string{"client", "server"} {
+			assertOrderInFlightMetric(t, sample, protocol, side, 1)
+		}
+	}
 	running.stop()
 	awaitOrderSignal(t, registry.started)
+	diagnosticGET(t, diagnosticClient, diagnostics, "/livez", http.StatusOK)
+	diagnosticGET(t, diagnosticClient, diagnostics, "/readyz", http.StatusServiceUnavailable)
 	for _, call := range calls {
 		ctx, cancel := context.WithTimeout(t.Context(), 2*time.Second)
 		_, err := call.orders.GetOrder(ctx, &order.GetOrderRequest{OrderId: "arrived-during-withdrawal"})
@@ -83,6 +101,15 @@ func TestOrderWithdrawsBeforeBothProtocolsDrain(t *testing.T) {
 	}
 	for _, call := range calls {
 		assertOrderPortReleased(t, call.address)
+	}
+	assertOrderPortReleased(t, diagnostics)
+	scrape := httptest.NewRecorder()
+	metrics.ServeHTTP(scrape, httptest.NewRequest(http.MethodGet, "/metrics", nil))
+	for _, protocol := range orderProtocols {
+		for _, side := range []string{"client", "server"} {
+			assertOrderInFlightMetric(t, scrape.Body.String(), protocol, side, 0)
+			assertOrderOutcomeMetrics(t, scrape.Body.String(), protocol, side, 1, 1)
+		}
 	}
 	assertDrainRPCLogs(t, logPath, name)
 }
@@ -222,9 +249,10 @@ type orderResult struct {
 	err      error
 }
 
-func newDiscoveredOrder(t *testing.T, registry kronos.RegistryProvider, name string, protocol kronos.WireProtocol) *order.OrderServiceClient {
+func newDiscoveredOrder(t *testing.T, registry kronos.RegistryProvider, name string, protocol kronos.WireProtocol, options ...kronos.Option) *order.OrderServiceClient {
 	t.Helper()
-	client, err := kronos.NewClient(kronos.Registry(registry), kronos.Name(name), kronos.Protocol(protocol))
+	options = append([]kronos.Option{kronos.Registry(registry), kronos.Name(name), kronos.Protocol(protocol)}, options...)
+	client, err := kronos.NewClient(options...)
 	if err != nil {
 		t.Fatal(err)
 	}

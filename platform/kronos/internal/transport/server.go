@@ -97,9 +97,19 @@ func MicroRPCServer(listener net.Listener, serviceName string, services []Servic
 			}
 		}
 	}
-	server := kratoshttp.NewServer(kratoshttp.Listener(listener), kratoshttp.Timeout(0))
+	server := newHTTPServer(listener)
 	server.Handle("/", microv2.NewHandler(serviceName, endpoints))
 	return server, nil
+}
+
+func HTTPServer(listener net.Listener, handler http.Handler) app.Server {
+	server := newHTTPServer(listener)
+	server.HandlePrefix("/", handler)
+	return server
+}
+
+func newHTTPServer(listener net.Listener) *kratoshttp.Server {
+	return kratoshttp.NewServer(kratoshttp.Listener(listener), kratoshttp.Timeout(0))
 }
 
 func failure(err error) (int, string, string) {
