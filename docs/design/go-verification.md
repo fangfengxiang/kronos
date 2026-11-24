@@ -21,6 +21,8 @@ go-micro v2 的双向互通单独运行 `GOWORK=off go test -tags=interop -count
 
 ## Order 治理验收
 
+需要采集并发调用的吞吐、延迟和资源变化时，使用 Linux 专项 Go 负载测试，并连接独立 etcd。配置方法与实测数据见 [Order 双协议容量基线](order-capacity.md)。
+
 本地与 CI 使用隔离的真实 etcd v3。GitHub Actions 在 Ubuntu 24.04 启动固定摘要的官方镜像，将容器端口映射到随机宿主端口。通过 Go 集成测试的线性一致读确认 etcd 已能处理请求。三条测试命令使用同一个 `KRONOS_ETCD_TEST_ADDRESS`，动态服务名隔离各个场景。[GitHub Actions 服务容器](https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idservices) · [治理契约](service-governance.md)
 
 ```sh
