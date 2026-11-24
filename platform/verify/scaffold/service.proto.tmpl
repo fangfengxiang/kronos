@@ -1,0 +1,19 @@
+syntax = "proto3";
+
+package kronos.{{.Package}}.v1;
+
+option go_package = "{{.ImportPath}}/internal/wire/kronos/{{.Package}}/v1;{{.Package}}v1";
+
+service {{.Service}} {
+  rpc Ping(PingRequest) returns (PingResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+  }
+}
+
+message PingRequest {
+  string value = 1;
+}
+
+message PingResponse {
+  string value = 1;
+}

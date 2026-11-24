@@ -21,7 +21,7 @@ func main() {
 }
 
 func run(ctx context.Context, arguments []string) error {
-	const usage = "usage: go run ./platform/verify {test|deps|proto|generate|breaking <baseline>}"
+	const usage = "usage: go run ./platform/verify {test|deps|proto|generate|breaking <baseline>|scaffold <name>}"
 	if len(arguments) == 0 {
 		return errors.New(usage)
 	}
@@ -29,10 +29,15 @@ func run(ctx context.Context, arguments []string) error {
 	if err != nil {
 		return err
 	}
-	if arguments[0] == "breaking" && len(arguments) == 2 {
-		return checkBreaking(ctx, repository, arguments[1])
+	if len(arguments) == 2 {
+		switch arguments[0] {
+		case "breaking":
+			return checkBreaking(ctx, repository, arguments[1])
+		case "scaffold":
+			return scaffoldService(ctx, repository, arguments[1])
+		}
 	}
-	if len(arguments) != 1 || arguments[0] == "breaking" {
+	if len(arguments) != 1 || arguments[0] == "breaking" || arguments[0] == "scaffold" {
 		return errors.New(usage)
 	}
 	switch arguments[0] {

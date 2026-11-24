@@ -69,6 +69,24 @@ KRONOS_ETCD_TEST_ADDRESS=127.0.0.1:2379 GOWORK=off go test \
 
 完整验收覆盖断连、进程崩溃、租约恢复和双协议摘流。[CI 与本地命令](../design/go-verification.md#order-治理验收) · [RPC 日志字段](../design/structured-logging.md#统一一元-rpc-的事件)
 
+## 新建一元服务
+
+准备 Go 1.25 和 Buf 1.70，运行以下命令。生成目录包括 Proto、共享实现、服务端、类型化客户端，以及该服务自己的 Buf 配置。默认连接本机 etcd。
+
+```sh
+go run ./platform/verify scaffold warehouse
+go run ./examples/warehouse/cmd/warehouse
+```
+
+启动后从另一个终端调用。两条命令均返回 `入库确认`。
+
+```sh
+go run ./examples/warehouse/cmd/warehouse-client -value 入库确认
+go run ./examples/warehouse/cmd/warehouse-client -protocol micro-v2 -value 入库确认
+```
+
+按业务修改新服务 `api/` 下的 Proto 后，运行 `go run ./platform/verify generate`。提交前用 `go run ./platform/verify proto` 检查产物，用 `go run ./platform/verify breaking HEAD` 核对协议兼容性。[文件契约与实测](../design/service-scaffold.md)
+
 ## 生成 Assistant 协议
 
 准备 Go 1.25.0 或更高版本，并将 [Buf 1.70.0](https://github.com/bufbuild/buf/releases/tag/v1.70.0) 放入 `PATH`。首次生成需要访问公开的 Go 模块代理和 Buf Schema Registry。生成命令从仓库根目录执行。

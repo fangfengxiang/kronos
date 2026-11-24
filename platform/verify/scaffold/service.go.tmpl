@@ -1,0 +1,17 @@
+package {{.Package}}
+
+import "context"
+
+type service struct{}
+
+// NewService constructs the unary service.
+func NewService() {{.Service}}UnaryService {
+	return service{}
+}
+
+func (service) Ping(ctx context.Context, request *PingRequest) (*PingResponse, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	return &PingResponse{Value: request.GetValue()}, nil
+}

@@ -1,0 +1,50 @@
+package main
+
+import (
+	"context"
+	"errors"
+	"log"
+	"os"
+	"os/signal"
+	"syscall"
+
+	"{{.ImportPath}}"
+	"github.com/fangfengxiang/kronos/infra/etcd"
+	"github.com/fangfengxiang/kronos/platform/kronos"
+)
+
+func main() {
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	if err := run(ctx); err != nil {
+		log.Fatal(err)
+	}
+}
+
+func run(ctx context.Context) (runError error) {
+	registry, err := etcd.New(setting("KRONOS_ETCD_ENDPOINT", "127.0.0.1:2379"))
+	if err != nil {
+		return err
+	}
+	defer func() { runError = errors.Join(runError, registry.Close()) }()
+	application, err := kronos.New(
+		kronos.Name({{.Package}}.{{.Service}}Name),
+		kronos.Registry(registry),
+		kronos.GRPC(setting("KRONOS_GRPC", "127.0.0.1:9090")),
+		kronos.MicroRPC(setting("KRONOS_MICRORPC", "127.0.0.1:9091")),
+	)
+	if err != nil {
+		return err
+	}
+	if err := application.Register({{.Package}}.Bind{{.Service}}({{.Package}}.NewService())); err != nil {
+		return err
+	}
+	return application.Run(ctx)
+}
+
+func setting(name, fallback string) string {
+	if value := os.Getenv(name); value != "" {
+		return value
+	}
+	return fallback
+}

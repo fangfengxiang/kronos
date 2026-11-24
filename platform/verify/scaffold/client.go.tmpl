@@ -1,0 +1,42 @@
+package main
+
+import (
+	"context"
+	"errors"
+	"flag"
+	"fmt"
+	"log"
+
+	"{{.ImportPath}}"
+	"github.com/fangfengxiang/kronos/infra/etcd"
+	"github.com/fangfengxiang/kronos/platform/kronos"
+)
+
+func main() {
+	endpoint := flag.String("etcd", "127.0.0.1:2379", "etcd host:port")
+	protocol := flag.String("protocol", "grpc", "grpc or micro-v2")
+	value := flag.String("value", "hello", "value to echo")
+	flag.Parse()
+	if err := run(context.Background(), *endpoint, kronos.WireProtocol(*protocol), *value); err != nil {
+		log.Fatal(err)
+	}
+}
+
+func run(ctx context.Context, endpoint string, protocol kronos.WireProtocol, value string) (runError error) {
+	registry, err := etcd.New(endpoint)
+	if err != nil {
+		return err
+	}
+	defer func() { runError = errors.Join(runError, registry.Close()) }()
+	client, err := kronos.NewClient(kronos.Registry(registry), kronos.Protocol(protocol))
+	if err != nil {
+		return err
+	}
+	defer func() { runError = errors.Join(runError, client.Close()) }()
+	response, err := {{.Package}}.New{{.Service}}Client(client).Ping(ctx, &{{.Package}}.PingRequest{Value: value})
+	if err != nil {
+		return err
+	}
+	fmt.Println(response.GetValue())
+	return nil
+}

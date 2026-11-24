@@ -11,6 +11,7 @@
 | `proto` | 校验锁定的 Buf 版本、协议格式、lint 和生成产物。生成产物先写入临时目录，按相对路径和内容比对。 |
 | `generate` | 使用锁定的 Buf 版本和各服务的生成模板更新协议产物。 |
 | `breaking <基线提交>` | 将当前 Proto 与指定 Git 快照对照。Buf FILE 规则检查线协议、JSON 和生成代码的兼容性。 |
+| `scaffold <名称>` | 在 `examples/<名称>` 创建可编译的一元服务、标准与兼容入口、类型化客户端和独立 Buf 配置。 |
 
 任一检查失败时返回非零退出码，输出定位失败的模块、导入或生成文件。参考服务的私有绑定和生成件使用 Kratos 与 gRPC，业务和命令代码通过 Kronos 与服务协议接入。
 
@@ -20,14 +21,15 @@ go-micro v2 的双向互通单独运行 `GOWORK=off go test -tags=interop -count
 
 ## Order 治理验收
 
-本地与 CI 使用隔离的真实 etcd v3。GitHub Actions 在 Ubuntu 24.04 启动固定摘要的官方镜像，将容器端口映射到随机宿主端口。通过 Go 集成测试的线性一致读确认 etcd 已能处理请求。两条测试命令使用同一个 `KRONOS_ETCD_TEST_ADDRESS`，动态服务名隔离各个场景。[GitHub Actions 服务容器](https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idservices) · [治理契约](service-governance.md)
+本地与 CI 使用隔离的真实 etcd v3。GitHub Actions 在 Ubuntu 24.04 启动固定摘要的官方镜像，将容器端口映射到随机宿主端口。通过 Go 集成测试的线性一致读确认 etcd 已能处理请求。三条测试命令使用同一个 `KRONOS_ETCD_TEST_ADDRESS`，动态服务名隔离各个场景。[GitHub Actions 服务容器](https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idservices) · [治理契约](service-governance.md)
 
 ```sh
 GOWORK=off go -C infra/etcd test -tags=etcd_integration -count=1 -v ./...
 GOWORK=off go test -tags=interop,etcd_interop -count=1 -v ./test/interop/microv2
+GOWORK=off go -C platform/verify test -count=1 -run '^TestScaffoldBuildsFreshService$' -v ./...
 ```
 
-第一条验证真实租约。第二条构建 Order 服务端和客户端命令，验证默认 gRPC、显式旧协议与两版官方 go-micro v2 的双向业务调用，并执行进程故障和资源回收用例。上游 SDK 只在隔离的临时 Go 模块内构建。首次运行需要访问 Go 模块代理，或准备可用的缓存。[官方互通夹具](../../test/interop/microv2/testdata/etcdregistry/main.go)
+三条命令依次验证真实租约、Order 及官方 go-micro v2 双向互通、从脚手架生成的全新服务。上游 SDK 在隔离的临时 Go 模块内构建。第三条使用锁定的 Buf 版本，基于同一个真实 etcd 运行生成的客户端和服务端。首次运行需要访问 Go 模块代理，或准备可用的缓存。[官方互通夹具](../../test/interop/microv2/testdata/etcdregistry/main.go) · [脚手架实测](service-scaffold.md#实测)
 
 ## 外部 SDK 归属
 
@@ -54,5 +56,5 @@ GOWORK=off go test -tags=interop,etcd_interop -count=1 -v ./test/interop/microv2
 - 修复前，隔离工作区的 `go list` 检查漏掉 TextBackend 命令对 Kafka SDK 的直接导入。Go 1.25.0、Ubuntu 24.04 Linux arm64 运行 `GOWORK=off go -C platform/verify test -count=3 ./...` 和 `go run ./platform/verify deps` 通过。macOS arm64 的验证模块竞态三轮及实际仓库的依赖检查通过。原生夹具验证允许适配包的 SDK 导入和测试对照，拒绝命令层直接导入。[导入边界回归](../../platform/verify/dependencies_test.go)
 - Go 1.25.0、Ubuntu 24.04 Linux arm64 执行 Order 两条治理命令、`go run ./platform/verify deps`、`go run ./platform/verify test` 和 `go run ./platform/verify proto`，全部通过。Assistant 的原生 Go Compose 验收通过，运行实际 Linux 容器。macOS arm64 经宿主随机回环端口执行两条真实 etcd 测试并加 `-race`，均通过。用 actionlint v1.7.12 校验工作流。使用 OCI 清单确认固定的 etcd 镜像摘要含 Linux amd64 和 arm64。[治理测试](service-governance.md#实测记录) · [工作流](../../.github/workflows/ci.yml)
 - 运行 `GOWORK=off GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -o "$output_directory" ./examples/order/cmd/order ./examples/order/cmd/order-client` 构建两个发布命令。在 Docker 的 Linux amd64 仿真环境启动这两个二进制与官方 etcd v3.6.16，使用默认配置调用 `-id 订单-amd64` 与 `-protocol micro-v2 -id 订单-amd64`。两次均返回 `订单-amd64 confirmed`，服务正常退出且进程状态为 0。[Order 命令](../guide/README.md#运行-order)
-- Go 1.25.0、Ubuntu 24.04 Linux amd64 仿真环境从空的 `GOMODCACHE` 和 `GOCACHE` 运行本页的两条治理验收命令。Go 从公开模块代理下载并验证依赖，两版官方 go-micro v2 均完成构建和双向业务调用，断连与崩溃用例通过。随后完整套件三轮通过，追加验证三实例下的重试上限和同一客户端的恢复。[重试实测](discovered-rpc-client.md#实测) · [恢复实测](service-governance.md#实测记录)
+- Go 1.25.0、Ubuntu 24.04 Linux amd64 仿真环境从空的 `GOMODCACHE` 和 `GOCACHE` 运行租约与双向互通测试。Go 从公开模块代理下载并验证依赖，两版官方 go-micro v2 均完成构建和双向业务调用，断连与崩溃用例通过。随后完整套件三轮通过，追加验证三实例下的重试上限和同一客户端的恢复。[重试实测](discovered-rpc-client.md#实测) · [恢复实测](service-governance.md#实测记录)
 - Go 1.25.0、Buf 1.70.0 在 Ubuntu 24.04 Linux arm64 运行 `GOWORK=off go -C platform/verify test -run '^TestBreakingChecksThePublishedFieldContract$' -v ./...`、`go run ./platform/verify breaking be671e1` 和 `go run ./platform/verify proto`。新增字段被接受，改变已有字段类型被拒绝。实际协议与已上线基线兼容，生成检查通过。外部 Go 签名夹具通过竞态编译，工作流通过 actionlint。[兼容用例](../../platform/verify/compatibility_test.go) · [外部 Go 签名](../../platform/kronos/public_test.go)
