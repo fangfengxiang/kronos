@@ -45,6 +45,11 @@ func NewClient(address string) (*Client, error) {
 
 // Call sends a Protobuf payload and returns the decoded response payload.
 func (client *Client) Call(ctx context.Context, service, endpoint string, payload []byte) ([]byte, error) {
+	return client.CallWithTraceContext(ctx, service, endpoint, payload, "", "")
+}
+
+// CallWithTraceContext sends a unary request with optional W3C trace headers.
+func (client *Client) CallWithTraceContext(ctx context.Context, service, endpoint string, payload []byte, traceparent, tracestate string) ([]byte, error) {
 	sequence := client.sequence.Add(1)
 	frame := encodeFrames(envelope{method: endpoint, sequence: sequence}, payload, nil, maxRequestBytes)
 	if frame == nil {
@@ -60,6 +65,12 @@ func (client *Client) Call(ctx context.Context, service, endpoint string, payloa
 	request.Header.Set("Micro-Service", service)
 	request.Header.Set("Micro-Method", endpoint)
 	request.Header.Set("Micro-Endpoint", endpoint)
+	if traceparent != "" {
+		request.Header.Set("traceparent", traceparent)
+		if tracestate != "" {
+			request.Header.Set("tracestate", tracestate)
+		}
+	}
 	if deadline, hasDeadline := ctx.Deadline(); hasDeadline {
 		remaining := time.Until(deadline)
 		if remaining <= 0 {

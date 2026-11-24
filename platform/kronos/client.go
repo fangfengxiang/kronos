@@ -114,7 +114,7 @@ func (client *Client) Invoke(ctx context.Context, method protoreflect.MethodDesc
 		MicroMethod: string(service.Name()) + "." + string(method.Name()),
 	}
 	observation := rpcObservation{service: serviceName, operation: operation.GRPCMethod, protocol: client.config.protocol}
-	completion := observation.begin(client.config.metrics, "client")
+	ctx, completion := observation.begin(ctx, client.config, "client")
 	transportAttempts := 0
 	defer func() {
 		if callError != nil && ctx.Err() != nil {
@@ -131,6 +131,16 @@ func (client *Client) Invoke(ctx context.Context, method protoreflect.MethodDesc
 	}()
 	if err := client.resolve(ctx, serviceName); err != nil {
 		return err
+	}
+	if tracer := client.config.tracer; tracer != nil {
+		tracer.Propagate(ctx, func(name, value string) {
+			switch name {
+			case "traceparent":
+				operation.TraceParent = value
+			case "tracestate":
+				operation.TraceState = value
+			}
+		})
 	}
 	descriptorOptions, _ := method.Options().(*descriptorpb.MethodOptions)
 	idempotent := descriptorOptions.GetIdempotencyLevel()

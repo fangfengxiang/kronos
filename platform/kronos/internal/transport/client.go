@@ -12,6 +12,7 @@ import (
 	kratosgrpc "github.com/go-kratos/kratos/v3/transport/grpc"
 	kratosstatus "github.com/go-kratos/kratos/v3/transport/http/status"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/metadata"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -19,6 +20,8 @@ type Operation struct {
 	GRPCMethod  string
 	MicroName   string
 	MicroMethod string
+	TraceParent string
+	TraceState  string
 }
 
 type Client struct {
@@ -37,6 +40,7 @@ func Dial(ctx context.Context, protocol rpc.Protocol, address string) (Client, e
 		return Client{
 			Close: connection.Close,
 			Invoke: func(ctx context.Context, op Operation, request, response proto.Message) (bool, error) {
+				ctx = withGRPCTrace(ctx, op)
 				err := connection.Invoke(ctx, op.GRPCMethod, request, response)
 				if err == nil {
 					return false, nil
@@ -55,6 +59,23 @@ func Dial(ctx context.Context, protocol rpc.Protocol, address string) (Client, e
 	}
 }
 
+func withGRPCTrace(ctx context.Context, op Operation) context.Context {
+	if op.TraceParent == "" {
+		return ctx
+	}
+	outgoing, _ := metadata.FromOutgoingContext(ctx)
+	if outgoing == nil {
+		outgoing = make(metadata.MD)
+	}
+	outgoing.Set("traceparent", op.TraceParent)
+	if op.TraceState == "" {
+		outgoing.Delete("tracestate")
+	} else {
+		outgoing.Set("tracestate", op.TraceState)
+	}
+	return metadata.NewOutgoingContext(ctx, outgoing)
+}
+
 func dialMicro(address string) (Client, error) {
 	connection, err := microv2.NewClient(address)
 	if err != nil {
@@ -70,7 +91,7 @@ func dialMicro(address string) (Client, error) {
 			if err != nil {
 				return false, err
 			}
-			decoded, err := connection.Call(ctx, op.MicroName, op.MicroMethod, payload)
+			decoded, err := connection.CallWithTraceContext(ctx, op.MicroName, op.MicroMethod, payload, op.TraceParent, op.TraceState)
 			if err == nil {
 				return false, proto.Unmarshal(decoded, response)
 			}

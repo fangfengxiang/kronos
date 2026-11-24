@@ -91,17 +91,7 @@ func TestOrderThroughOfficialRegistryAndClients(t *testing.T) {
 			}
 		})
 	}
-	if err := process.command.Process.Signal(syscall.SIGTERM); err != nil {
-		t.Fatal(err)
-	}
-	select {
-	case <-process.done:
-		if process.err != nil {
-			t.Fatalf("Order stop: %v", process.err)
-		}
-	case <-time.After(12 * time.Second):
-		t.Fatal("Order did not stop within its shutdown budget")
-	}
+	process.stop(t, 12*time.Second)
 	for _, protocol := range []string{"grpc", "micro-v2"} {
 		addresses, err := registry.Lookup(t.Context(), serviceName, protocol)
 		if err != nil || len(addresses) != 0 {
@@ -168,6 +158,21 @@ type orderProcess struct {
 	logPath string
 }
 
+func (process *orderProcess) stop(t *testing.T, budget time.Duration) {
+	t.Helper()
+	if err := process.command.Process.Signal(syscall.SIGTERM); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case <-process.done:
+		if process.err != nil {
+			t.Fatalf("Order stop: %v", process.err)
+		}
+	case <-time.After(budget):
+		t.Fatal("Order did not stop within its shutdown budget")
+	}
+}
+
 func buildOrderCommand(t *testing.T, name string) string {
 	t.Helper()
 	repository, err := filepath.Abs("../../..")
@@ -188,7 +193,7 @@ func startOrderProcess(t *testing.T, endpoint, serviceName string, environment .
 	process.command.Env = append(os.Environ(),
 		"KRONOS_ETCD_ENDPOINT="+endpoint, "KRONOS_ORDER_NAME="+serviceName,
 		"KRONOS_ORDER_GRPC=127.0.0.1:0", "KRONOS_ORDER_MICRORPC=127.0.0.1:0", "KRONOS_ORDER_ADVERTISE_HOST=",
-		"KRONOS_ORDER_DIAGNOSTICS=",
+		"KRONOS_ORDER_DIAGNOSTICS=", "KRONOS_ORDER_TRACE_ENDPOINT=",
 	)
 	process.command.Env = append(process.command.Env, environment...)
 	output, err := os.CreateTemp(t.TempDir(), "order-log")

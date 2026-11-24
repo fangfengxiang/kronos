@@ -12,6 +12,7 @@ import (
 	"slices"
 	"testing"
 
+	frameworklog "github.com/fangfengxiang/kronos/framework/log"
 	"github.com/fangfengxiang/kronos/platform/kronos"
 )
 
@@ -23,7 +24,7 @@ func captureRPCLogs(t *testing.T) string {
 	}
 	original := slog.Default()
 	originalOutput, originalFlags := log.Writer(), log.Flags()
-	slog.SetDefault(slog.New(slog.NewJSONHandler(output, &slog.HandlerOptions{Level: slog.LevelDebug})))
+	slog.SetDefault(frameworklog.NewJSON(output, &slog.HandlerOptions{Level: slog.LevelDebug}))
 	t.Cleanup(func() {
 		slog.SetDefault(original)
 		log.SetOutput(originalOutput)

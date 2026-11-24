@@ -17,13 +17,25 @@ Order 维护者需要区分实例仍在运行、正在接纳请求和已在 etcd
 
 方法由装配入口预先声明。Prometheus 标签只取这些方法、固定协议、两种角色和结果。复用进程内的 Counter、Histogram、Gauge 和独立 registry。原有 Assistant 计数器和标签保持其公开契约。启用诊断时可在同一实例观察成功、错误、在途与就绪，而恢复验收仍通过按服务名调用取得订单。[Prometheus 在线服务的信号](https://prometheus.io/docs/practices/instrumentation/#online-serving-systems) · [Google SRE 监测](https://sre.google/sre-book/monitoring-distributed-systems/)
 
+## Trace 与调用定位
+
+应用入口创建并持有已有的 OTLP HTTP provider，通过 `kronos.Tracing` 交给应用或客户端。一次逻辑调用记录一个客户端 span。服务端对实际到达的每次调用记录自己的 span。传输只复制 W3C `traceparent` 和 `tracestate`，gRPC 走 metadata，MicroRPC 走 HTTP 请求头。原调用上下文继续持有期限和取消。Order 可以按部署配置开启导出，并在退出时用 5 秒预算关闭自己创建的 provider。[已有 Trace 适配](request-tracing.md) · [OpenTelemetry 上下文传播](https://opentelemetry.io/docs/concepts/context-propagation/)
+
+日志继续记录稳定结果。现有 JSON logger 从请求上下文取 `trace_id` 和 `span_id`。用指标的协议、方法和角色定位时间窗口，再由同维度的结构化日志关联 OTLP span。span 属性记录协议、角色和稳定 RPC 状态。业务消息、目标地址和任意错误文本保留在业务与诊断边界。共享查址独立于任一调用方，查址失败只有客户端逻辑 span，不产生虚构的服务端请求。[日志字段](structured-logging.md#统一一元-rpc-的事件)
+
 ## 通过条件
 
 - 用真实 etcd 启动 Order，两个监听均有正确的成功和错误计数。使用两个 Kronos 客户端，分别核对客户端和服务端的观测点。
 - 在两个业务请求仍在途时抓取指标，核对协议各有一个服务端请求。启动摘流后，探针分别返回存活和未就绪，etcd 地址由注册中心观察方核对。释放请求后校验在途值归零，诊断端口随应用释放。
 - 使用 Order 命令的可选配置取得实际 `/livez`、`/readyz` 和 `/metrics`。默认核心装配行数、依赖隔离和旧客户端互通继续通过。
+- 使用实际 etcd、Order 进程与 HTTP OTLP 接收端。分协议完成业务成功和稳定失败，核对客户端与服务端 span 的父子关系、JSON 日志中的 trace/span ID，以及双方计数。查询无实例时验证客户端 span 和零发送次数，并确认没有服务端 span。
 
 ## 指标与探针实测
 
 - Go 1.25.0、Ubuntu 24.04 Linux amd64、官方 etcd v3.6.16 执行 `GOWORK=off go test -tags=interop,etcd_interop -count=1 -v ./test/interop/microv2`。Order 命令启用实际诊断端口，两协议的成功数、错误数与耗时样本均符合调用记录。摘流测试在两个协议各有一个在途调用时抓取指标。进入摘流时，同一 HTTP 连接观察到 `/livez` 200、`/readyz` 503。调用返回后客户端和服务端的在途数归零，三个监听均可重新绑定。[命令验收](../../test/interop/microv2/etcd_test.go) · [摘流验收](../../test/interop/microv2/drain_test.go)
 - macOS arm64 通过 `go run ./platform/verify deps`、`GOWORK=off go -C infra/prometheus test -race ./...`、`GOWORK=off go -C platform/kronos test -race ./...` 和 `GOWORK=off go test -race ./examples/order/...`。Order 核心装配 22 行。[指标实现](../../infra/prometheus/rpc.go) · [行数断言](../../examples/order/cmd/order/main_test.go)
+
+## Trace 实测
+
+- Go 1.25.0、Ubuntu 24.04 Linux amd64 与真实 etcd v3.6.16 运行 `GOWORK=off go test -tags=interop,etcd_interop -count=1 -v ./test/interop/microv2`。gRPC 和 MicroRPC 的成功、校验失败均导出匹配的客户端和服务端 span。OTLP 共收到九个 span。日志中的失败 trace/span ID 与导出一致，两侧指标数匹配实际调用。空地址查询保留 `NO_INSTANCES` 和零发送次数，仅出现客户端 span。[端到端信号验收](../../test/interop/microv2/trace_test.go)
+- macOS arm64 关闭工作区，`infra/oteltrace`、`infra/microv2`、`platform/kronos`、Order 及 Assistant 命令包的 Go 竞态测试通过。分层检查通过。复用已接入的日志、Prometheus 和 OTLP 适配，两个业务协议共用一个观察点。[Trace 适配](../../infra/oteltrace/provider.go) · [RPC 观察点](../../platform/kronos/observation.go)

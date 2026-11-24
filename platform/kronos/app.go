@@ -166,7 +166,7 @@ func (application *App) observeServices(services []transport.Service, protocol r
 
 func (application *App) observe(observation rpcObservation, ready func() bool, invoke unaryCall) unaryCall {
 	return func(ctx context.Context, request proto.Message) (proto.Message, error) {
-		completion := observation.begin(application.config.metrics, "server")
+		ctx, completion := observation.begin(ctx, application.config, "server")
 		if !ready() {
 			err := &rpc.Error{Code: rpc.Unavailable, Reason: rpc.ServiceUnavailableReason, Message: "service is unavailable"}
 			observation.finished(ctx, "rpc_finished", completion.finish(err), err, slog.Int64("in_flight", application.inFlight.Load()))

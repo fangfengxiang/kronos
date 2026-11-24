@@ -60,6 +60,7 @@
 | T13 | 业务使用 Kronos 与 Protobuf 公开契约 | [依赖方向](../adr/0004-layer-and-module-boundaries.md#依赖方向与注入) | [导入规则](../../platform/verify/dependencies.go) | [生产依赖对照](../../platform/verify/dependencies_test.go) |
 | T14 | CI 在独立 Linux 环境复现原生 Go 验收 | [本地与 CI 命令](go-verification.md#order-治理验收) | [Linux 工作流](../../.github/workflows/ci.yml) | [近次完整验收](https://github.com/fangfengxiang/kronos/actions/runs/45306567631) |
 | T15 | 指标区分双协议与双方角色，探针反映接纳状态 | [Order 运行观测](order-diagnostics.md) | [观测点](../../platform/kronos/observation.go) · [指标适配](../../infra/prometheus/rpc.go) | [实际探针及摘流指标](../../test/interop/microv2/drain_test.go) · [命令抓取](../../test/interop/microv2/etcd_test.go) |
+| T16 | 双协议 Trace 可关联到日志与指标，失败定位到真实阶段 | [Trace 与调用定位](order-diagnostics.md#trace-与调用定位) | [OTLP Trace](../../infra/oteltrace/provider.go) · [传输传播](../../platform/kronos/internal/transport/client.go) | [实际 OTLP、日志和指标](../../test/interop/microv2/trace_test.go) |
 
 ## 实测记录
 

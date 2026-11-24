@@ -24,6 +24,13 @@ type RPCMetrics interface {
 	BeginRPC(operation, protocol, side string) func(failed bool, duration time.Duration)
 }
 
+// RPCTracer observes a unary call and propagates its W3C trace context.
+// StartRPC preserves the caller's deadline and cancellation in its context.
+type RPCTracer interface {
+	StartRPC(ctx context.Context, operation, protocol, side string) (context.Context, func(status string))
+	Propagate(ctx context.Context, set func(string, string))
+}
+
 type settings struct {
 	name            string
 	registry        RegistryProvider
@@ -32,6 +39,7 @@ type settings struct {
 	diagnostics     string
 	scrape          http.Handler
 	metrics         RPCMetrics
+	tracer          RPCTracer
 	advertiseHost   string
 	shutdownTimeout time.Duration
 	protocol        rpc.Protocol
@@ -64,6 +72,11 @@ func MicroRPC(address string) Option {
 // Metrics borrows an optional unary RPC observer for the app or client.
 func Metrics(metrics RPCMetrics) Option {
 	return func(config *settings) { config.metrics = metrics }
+}
+
+// Tracing borrows an optional tracer for the app or client.
+func Tracing(tracer RPCTracer) Option {
+	return func(config *settings) { config.tracer = tracer }
 }
 
 // Diagnostics configures an HTTP listener for liveness, readiness and an

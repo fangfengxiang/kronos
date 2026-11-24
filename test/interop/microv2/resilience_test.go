@@ -11,7 +11,6 @@ import (
 	"os"
 	"strings"
 	"sync"
-	"syscall"
 	"testing"
 	"time"
 
@@ -57,17 +56,7 @@ func TestOrderRecoversBusinessCallsAfterRegistryPartition(t *testing.T) {
 	awaitRecoveredOrder(t, recoveryContext, grpcOrders, kronos.ProtocolGRPC)
 	awaitRecoveredOrder(t, recoveryContext, microOrders, kronos.ProtocolMicroV2)
 
-	if err := process.command.Process.Signal(syscall.SIGTERM); err != nil {
-		t.Fatal(err)
-	}
-	select {
-	case <-process.done:
-		if process.err != nil {
-			t.Fatal(process.err)
-		}
-	case <-time.After(12 * time.Second):
-		t.Fatal("recovered Order did not stop")
-	}
+	process.stop(t, 12*time.Second)
 	logs, err := os.ReadFile(process.logPath)
 	if err != nil {
 		t.Fatal(err)

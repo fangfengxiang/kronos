@@ -18,20 +18,28 @@ type rpcObservation struct {
 type rpcCompletion struct {
 	started time.Time
 	metric  func(failed bool, duration time.Duration)
+	trace   func(status string)
 }
 
-func (observation rpcObservation) begin(metrics RPCMetrics, side string) rpcCompletion {
+func (observation rpcObservation) begin(ctx context.Context, config settings, side string) (context.Context, rpcCompletion) {
 	completion := rpcCompletion{started: time.Now()}
-	if metrics != nil {
-		completion.metric = metrics.BeginRPC(observation.operation, string(observation.protocol), side)
+	if config.metrics != nil {
+		completion.metric = config.metrics.BeginRPC(observation.operation, string(observation.protocol), side)
 	}
-	return completion
+	if config.tracer != nil {
+		ctx, completion.trace = config.tracer.StartRPC(ctx, observation.operation, string(observation.protocol), side)
+	}
+	return ctx, completion
 }
 
 func (completion rpcCompletion) finish(err error) time.Duration {
 	duration := time.Since(completion.started)
 	if completion.metric != nil {
 		completion.metric(err != nil, duration)
+	}
+	if completion.trace != nil {
+		status, _ := outcome(err)
+		completion.trace(status)
 	}
 	return duration
 }
