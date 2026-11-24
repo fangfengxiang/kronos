@@ -45,7 +45,7 @@
 | `infra/microv2` B | [Assistant 装配旧协议服务端和客户端](../../examples/assistant/internal/binding/micro.go#L23-L46) | [实际封帧调用并释放空闲连接](../../infra/microv2/example_test.go) | 底层调用方持有 HTTP 客户端并关闭空闲连接。统一框架负责选协议。两版官方协议另有回归。 |
 | `infra/mongodb` A | [TextBackend 打开数据库和类型化集合](../../examples/textbackend/cmd/textbackend/mongo_profile.go#L29-L44) | [错误配置](../../infra/mongodb/database_test.go#L72) · [打开数据库](../../infra/mongodb/integration_test.go#L118)，需要 `mongodb_integration` | 入口 Open 并用有期限的上下文 Close。业务经类型化集合访问，直连与 SRV 启动取消有对照。 |
 | `infra/mysql` A | [TextBackend 打开连接池](../../examples/textbackend/cmd/textbackend/mysql_profile.go#L25-L37) | [错误配置](../../infra/mysql/pool_test.go#L75) · [打开 SQL 连接池](../../infra/mysql/integration_test.go#L137)，需要 `mysql_integration` | 入口 Open 并持有标准库 sql.DB，启动失败收尾。调用方传上下文，部署配置持有 DSN。 |
-| `infra/oteltrace` C | [Assistant 创建追踪器](../../examples/assistant/cmd/assistant/main.go#L160-L168) · [传递链路上下文](../../examples/assistant/internal/binding/request.go#L25-L42) | [创建追踪实例](../../infra/oteltrace/example_test.go#L13) | 创建 OTLP provider 后注入 Kronos，框架持有调用的 span，创建者有界 Close。日志关联与启动接线仍需核对。 |
+| `infra/oteltrace` C | [Order 集中装配](../../examples/order/cmd/order/main.go) · [Assistant 请求绑定](../../examples/assistant/internal/binding/request.go) | [创建追踪实例](../../infra/oteltrace/example_test.go) | 框架拥有逻辑调用 span 和跨协议传播。创建者在排空后有界 Close。双协议的日志、Trace 导出及调用计数在同一验收中对照。[实测](../design/order-diagnostics.md#trace-实测) |
 | `infra/prometheus` C | [Assistant 注册请求指标](../../examples/assistant/cmd/assistant/main.go#L115-L122) | [注册与记录](../../infra/prometheus/example_test.go#L13) | 应用启用服务指标后，由框架从绑定登记方法。观察器持有独立注册表，结果及在途信号复用同一 HTTP 抓取入口。 |
 | `infra/redis` A | [TextBackend 装配缓存](../../examples/textbackend/cmd/textbackend/main.go#L115-L125) · [业务读取与回填](../../examples/textbackend/cmd/textbackend/profile_cache.go) | [错误配置](../../infra/redis/client_test.go#L79) · [实例与缓存操作](../../infra/redis/integration_test.go#L172)，需要 `redis_integration` | 入口 New 和 Close，Get 区分空值与未命中。上层决定回源与 TTL。Go 用例区分调用期限与套接字期限。 |
 | `infra/runtimeprofile` B | [Assistant 装配独立性能监听](../../examples/assistant/cmd/assistant/main.go#L150-L155) | [创建性能采集服务](../../infra/runtimeprofile/example_test.go#L15) | 应用交付预绑定的回环监听，进程生命周期统一管理采集端点。路由和监听安全约束有测试。 |
@@ -54,6 +54,32 @@
 | `platform/verify` A | 工具。[CI 原生 Go 入口](../../.github/workflows/ci.yml#L23-L39) | [原生 Go 验收命令](../design/go-verification.md) | 仓库与 CI 通过同一 Go 命令验收，生成检查持有临时目录，既有契约按 Git 基线校验。 |
 
 Go 1.25.0 在 Ubuntu 24.04 Linux arm64 运行 `GOWORK=off go -C <模块目录> test -run '^Example' -v ./...`，覆盖新补的 App、语言协商、Blades、etcd、MicroRPC 示例。用 `GOWORK=off go test -run '^Example' -v ./examples/order` 验证 Kronos 注册生成服务的示例。macOS arm64 上的 `go run ./platform/verify test` 和 `go run ./platform/verify deps` 通过，涵盖根模块及 24 个独立模块的默认竞态回归与依赖检查。矩阵与 `go.work` 的模块集合一致，24 行链接到本地文件的路径均可解析。[Go 可测试示例](https://go.dev/blog/examples) · [验收入口](../design/go-verification.md)
+
+## 面向使用者的验收
+
+下表以 `40910b7` 的调用方式为起点，记录中间接入路径，并以主线 `008ced4` 的代码与运行结果核对。用实际装配步骤、调用行为和可观察的错误判断收益。
+
+| 目标 | 基线和改造后的差异 | 验收证据 |
+| --- | --- | --- |
+| 认知负载 | 原有统一一元服务已能注册生成的业务绑定。新增服务可沿用一条已验证的 Proto 到应用路径，监听和协议编码由框架装配。需要自定义监听和重载时可用原有底层绑定。 | [新建服务与高级接线](../guide/README.md) · [Order 装配行数断言](../../examples/order/cmd/order/main_test.go) |
+| 接入负载 | 独立业务原先从源码工作区导入七个组件目录。现在按同一已推送提交安装运行时和注册中心，生成器用该提交运行。Consul 复用与 etcd 相同的注入点，标准 gRPC 用 passing 健康结果发现。 | [公开模块安装及生成](../design/service-scaffold.md#实测) · [Consul 接入及失败边界](../design/consul-service-registration.md) |
+| 调用负载 | 两个协议使用同一类型化方法，默认 gRPC，兼容端由调用方显式选择。调用方在标准上下文设置出站语言。业务只需要协议消息、上下文和匹配接口。 | [外部公开签名](../../platform/kronos/public_test.go) · [独立业务双协议](../../platform/verify/scaffold_test.go) · [语言权重与优先级](../../test/interop/microv2/localization_test.go) |
+| 责任负载 | TextBackend 原有 Consul 适配手工组装实例 ID、回滚和注销。使用统一入口的一元服务将这些动作交给适配器与 App。应用入口仍拥有创建的注册中心，应用负责监听、摘流和排空，客户端负责连接。 | [Order Consul 业务调用](../../test/integration/consul/order_test.go) · [系统边界和故障状态](../architecture/rpc-system.md) |
+| 组合负载 | Order 原来分别挂接指标、抓取端口与 Trace。现通过一个观测选项接入，指标方法名取自注册的 Proto，实例日志与 Trace 共用请求上下文。Assistant 的匹配集合来自其文案表。 | [观测组合与所有权](../design/order-diagnostics.md#集中装配与所有权) · [语言资源组装](../design/core-localization.md#消息资源) |
+| 排障负载 | 注册失败、发现无实例和调用失败可分别定位。观察探针、指标和稳定错误后可找到同一请求的 Trace。Consul 的 MicroRPC 误配在构造阶段报错，etcd 的私有 CA 或证书失败在隔离环境有对照。 | [故障传播与处置](../architecture/rpc-system.md) · [指标、日志和 Trace 对照](../../test/interop/microv2/trace_test.go) · [TLS 正反例](../../test/interop/microv2/etcd_tls_test.go) |
+| 资源安全 | 启动失败回收监听。停止接纳后先注销，再排空已接纳请求与刷新导出。共享发现具备独立取消，租约失联恢复后以真实请求确认。 | [治理追踪与回归](../design/service-governance.md#需求追踪) · [真实启动回滚](../../test/interop/microv2/startup_test.go) · [关停](../../test/interop/microv2/drain_test.go) |
+| 独立性 | 数据、缓存、对象、消息与模型资源由构造和使用方持有。底层库可以在关闭工作区时独立测试，分层检查约束生产导入。 | [24 模块入口与示例](#逐库示例与审查结果) · [依赖方向](../adr/0004-layer-and-module-boundaries.md) · [独立模块验收](../design/go-verification.md) |
+| 协议兼容 | 默认 gRPC，显式 MicroRPC。用官方 v2.0.0 与 v2.9.1 验证旧客户端及旧服务端的双向调用。公开 Go 签名与 Proto 的发布基线分别验收。 | [官方互通](../../test/interop/microv2/etcd_test.go) · [公开契约门禁](../adr/0010-public-contract-compatibility.md) |
+| 系统工程与质量 | 24 个模块的使用方式和所有权逐项对应到包内示例、工具入口或真实消费者。关键链路的需求、设计、实现和测试在治理矩阵对照。Linux CI 执行原生 Go 竞态、协议和层级、Order 真实治理与 Assistant Compose。 | [治理追踪表](../design/service-governance.md#需求追踪) · [Linux 主线验收](https://github.com/fangfengxiang/kronos/actions/runs/45383172894) |
+
+### 已验证的保留与运行边界
+
+- `infra/kafka` 保留 `OpenPublisher`、`NewConsumer` 和两端共用的配置。写入者负责关闭可并发复用的 Publisher，一轮 Consumer.Run 负责轮询、按次提交和释放消费组。Go 1.25.0、Ubuntu 24.04 Linux arm64 与官方 Kafka 4.4.0 复跑 `TestPublishAndGroupOffsetsMatchNativeKafka` 和 `TestTextBackendPublishesAndConsumesGeneration`，确认真实确认写入、处理失败后重读、取消、输出和两个进程退出。TLS/SASL 路径已有同一适配实现的独立实测。[Kafka 契约及命令](../design/kafka-generation-events.md)
+- `infra/aliyunoss` 保留独立 Bucket 和显式流关闭，资源持有方可以释放空闲连接。协议签名和流取消有 SDK 对照，TextBackend 的真实进程通过本地 HTTP OSS 夹具读到业务配置。[OSS 取流与回收](../../infra/aliyunoss/bucket_test.go) · [TextBackend 取配置](../../test/integration/oss/profile_test.go)
+- `infra/blades` 保留一次构造注入和 Run、Stream 两条常用入口。实际 Assistant 使用确定性模型验证输出、SSE 断连取消和失败恢复，高级调用方可注入自己的迭代器。[模型入口示例](../../infra/blades/example_test.go) · [SSE 验收](../../examples/assistant/sse_test.go)
+- `infra/runtimeprofile` 默认关闭。部署用一个回环地址启用，框架接手绑定与生命周期。对照 Go pprof，核对两种快照、路由隔离、非法监听回滚，以及 Assistant 重载前后的状态。[诊断装配和 Linux 实测](../design/runtime-profiles.md)
+
+在源码 `008ced4` 上使用 Go 1.25.0 运行 `go run ./platform/verify test`、`go run ./platform/verify deps`、`go run ./platform/verify proto` 和 `go run ./platform/verify breaking 40910b7`。根模块与 24 个独立模块的竞态、分层、重生成和兼容均通过。Ubuntu 24.04 Linux arm64 使用官方 Consul 2.1.0 复跑 `GOWORK=off go test -tags=consul_integration -count=1 -v ./test/integration/consul`，Order、TextBackend 和 Assistant 三个入口通过。逐库矩阵与工作区一一对应，治理矩阵覆盖 T01 至 T20。Windows amd64 交叉构建了 Order 的服务端和客户端，双向 TLS 运行证据来自 Linux。[治理及发布态验收](../design/go-verification.md)
 
 ## 初审的 Shell 测试核查与实测
 
