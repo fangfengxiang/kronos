@@ -42,6 +42,10 @@ KRONOS_PUBLISHED_REVISION="$kronos_revision" GOWORK=off \
 
 与其他治理用例一样，用 `KRONOS_ETCD_TEST_ADDRESS` 指定隔离实例。[调用测试](../../platform/verify/scaffold_test.go) · [设计与取舍](service-scaffold.md#仓库外业务项目)
 
+### etcd 双向 TLS 验收
+
+使用隔离的官方 etcd 并开启 `client-cert-auth`。设置 `KRONOS_ETCD_TEST_TLS_ENDPOINT` 和 Order 的 CA、证书、密钥路径后，运行 `GOWORK=off go test -tags=etcd_interop -count=1 -run '^TestOrderWithMutualTLSEtcd$' -v ./test/interop/microv2`。该用例核对可信客户端能注册和发现，CA 不匹配或缺少客户端证书时查询失败，两种 RPC 协议均能完成业务调用和关停注销。[证书输入](../guide/README.md#连接启用-tls-的-etcd) · [Go 进程测试](../../test/interop/microv2/etcd_tls_test.go)
+
 ## 外部 SDK 归属
 
 已接入 SDK 的导入前缀由对应适配模块持有。业务包可以使用 Kronos 模块、标准库以及公开 Protobuf 契约。参考服务的私有 `internal/binding` 与 `internal/wire` 负责 Kratos 和 gRPC 接线。Kronos 内部的 app、log、追踪和性能监听也有明确的 Kratos 导入归属。旧 go-micro SDK 由独立的互通夹具持有。[导入规则](../../platform/verify/dependencies.go) · [模块与依赖边界](../adr/0004-layer-and-module-boundaries.md)

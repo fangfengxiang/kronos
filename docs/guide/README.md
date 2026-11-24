@@ -71,6 +71,10 @@ KRONOS_ETCD_TEST_ADDRESS=127.0.0.1:2379 GOWORK=off go test \
 
 完整验收覆盖断连、进程崩溃、租约恢复和双协议摘流。[CI 与本地命令](../design/go-verification.md#order-治理验收) · [RPC 日志字段](../design/structured-logging.md#统一一元-rpc-的事件)
 
+### 连接启用 TLS 的 etcd
+
+Order 的服务端和客户端可使用 HTTPS 端点。私有 CA 使用 `KRONOS_ETCD_CA_FILE`。要求双向认证时，同时设置 `KRONOS_ETCD_CERT_FILE` 和 `KRONOS_ETCD_KEY_FILE`。证书路径由部署环境提供。服务端用 `KRONOS_ETCD_ENDPOINT=https://etcd.example:2379`，客户端用 `-etcd https://etcd.example:2379`。自行装配的应用可通过 `etcd.NewWithConfig` 传入自己的端点列表和标准 `*tls.Config`。[TLS 接入与所有权](../design/service-governance.md#私有-ca-与客户端证书)
+
 ## 新建一元服务
 
 准备 Go 1.25 和 Buf 1.70，运行以下命令。生成目录包括 Proto、共享实现、服务端、类型化客户端，以及该服务自己的 Buf 配置。默认连接本机 etcd。

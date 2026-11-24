@@ -9,7 +9,7 @@ import (
 	"os"
 
 	"github.com/fangfengxiang/kronos/examples/order"
-	"github.com/fangfengxiang/kronos/infra/etcd"
+	"github.com/fangfengxiang/kronos/examples/order/internal/etcdconfig"
 	"github.com/fangfengxiang/kronos/platform/kronos"
 )
 
@@ -31,7 +31,7 @@ func run(ctx context.Context, args []string) (runError error) {
 	if flags.NArg() != 0 || *orderID == "" {
 		return errors.New("provide an order ID with -id")
 	}
-	registry, err := etcd.New(*endpoint)
+	registry, err := etcdconfig.Open(*endpoint)
 	if err != nil {
 		return err
 	}

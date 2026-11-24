@@ -39,6 +39,12 @@
 
 参考装配沿用了注册能力注入业务进程的做法。当前通过显式实例管理配置和资源，以官方客户端承担连接、读写、事务及租约。选用接受 Go 1.25 基线的 `go.etcd.io/etcd/client/v3 v3.6.14`。实测服务器使用官方 Linux etcd v3.6.16。上游将 Windows amd64 的 etcd 服务端列为 Tier 3。Windows 开发可通过 TCP 指向 Linux etcd。当前 Windows 证据为适配模块交叉编译。[客户端模块](https://github.com/etcd-io/etcd/blob/v3.6.14/client/v3/go.mod) · [服务端发布](https://github.com/etcd-io/etcd/releases/tag/v3.6.16) · [平台支持](https://etcd.io/docs/v3.6/op-guide/supported-platform/)
 
+### 私有 CA 与客户端证书
+
+部署使用私有 CA 或要求客户端证书时，业务入口用 `etcd.NewWithConfig` 传入端点和标准 `*tls.Config`。底层客户端负责 TLS 握手，配置随各自实例使用。带 TLS 的配置接受 HTTPS 与无 scheme 的地址，显式 HTTP 端点会返回配置错误，避免 SDK 按地址规则忽略 TLS。地址校验失败时只报告端点序号。普通 `etcd.New(endpoints...)` 保留已有接入路径。
+
+Order 的服务端和客户端共用证书加载。部署通过 `KRONOS_ETCD_CA_FILE` 提供该实例使用的信任根，`KRONOS_ETCD_CERT_FILE` 和 `KRONOS_ETCD_KEY_FILE` 成对提供客户端证书。使用官方 etcd 要求客户端证书，验证缺认证证书时查询失败，有效证书能完成两种协议的注册、发现与关停注销。TLS 保护注册中心连接，业务传输沿用各自的部署配置。[etcd 传输安全](https://etcd.io/docs/v3.6/op-guide/security/) · [官方客户端配置](https://pkg.go.dev/go.etcd.io/etcd/client/v3@v3.6.14#Config)
+
 ## 验收目标
 
 ### 需求追踪
@@ -64,8 +70,12 @@
 | T17 | 保持现有 Proto 和 Go 核心调用契约的兼容 | [版本与迁移](../adr/0010-public-contract-compatibility.md) | [Buf 基线检查](../../platform/verify/compatibility.go) · [CI](../../.github/workflows/ci.yml) | [基线正反例](../../platform/verify/compatibility_test.go) · [外部 Go 消费者编译](../../platform/kronos/public_test.go) |
 | T18 | 新服务可从 Proto 生成、构建并经双协议调用 | [一元服务脚手架](service-scaffold.md) | [脚手架命令](../../platform/verify/scaffold.go) · [生成入口](../../platform/verify/protocol.go) | [全新服务经真实 etcd](../../platform/verify/scaffold_test.go) |
 | T19 | 实例摘除和客户端释放可从运行日志核对，剩余实例继续成功 | [实例与传输资源状态](discovered-rpc-client.md#实例失败及资源) | [快照计数](../../platform/kronos/discovery.go) · [客户端关闭](../../platform/kronos/client.go) | [真实 etcd 双实例变更](../../test/interop/microv2/replicas_test.go) |
+| T20 | 服务端和调用方可经双向 TLS 使用 etcd，证书错误时拒绝查询 | [私有 CA 与客户端证书](#私有-ca-与客户端证书) | [连接配置](../../infra/etcd/registry.go) · [Order 启动配置](../../examples/order/internal/etcdconfig/registry.go) | [真实双向 TLS](../../test/interop/microv2/etcd_tls_test.go) |
 
 ## 实测记录
+
+- Go 1.25.0、Ubuntu 24.04 Linux arm64，使用官方 etcd v3.6.16 启用 `client-cert-auth` 与临时私有 CA。设置路径后运行 `GOWORK=off go test -tags=etcd_interop -count=3 -run '^TestOrderWithMutualTLSEtcd$' -v ./test/interop/microv2`，三轮通过。未知 CA、缺客户端证书两种对照均无法查询。服务进程与独立 CLI 使用有效客户端证书，两路均返回 `订单-03 confirmed`，停机后两组记录为空。macOS arm64 的 etcd 与 Order 竞态回归和依赖检查通过。[Go 验收命令](go-verification.md#etcd-双向-tls-验收)
+- 同一次改动在 Ubuntu 24.04 Linux amd64 使用普通 etcd v3.6.16，租约测试及 `GOWORK=off go test -tags=interop,etcd_interop -count=1 -v ./test/interop/microv2` 通过。默认连接、官方旧端、关停和故障恢复均完成真实回归。[默认治理验收](go-verification.md#order-治理验收)
 
 - Go 1.25.0、Ubuntu 24.04 Linux arm64，使用官方 etcd v3.6.16 镜像摘要 `sha256:b29d816b546a1966fe7034a33b34e231fa98c47ce4d2883f70b0555020b22132` 与临时隔离网络。设置 `KRONOS_ETCD_TEST_ADDRESS` 后运行 `GOWORK=off go -C infra/etcd test -tags=etcd_integration -count=1 -v ./...`。直接检查双协议的同一事务、实例 ID 与租约。验证多实例、上下文取消、续约跨过原 TTL、租约删除后的相同实例重发，以及停止续约后的服务回收。[租约测试](../../infra/etcd/integration_test.go)
 - 同一 Linux 环境运行 `GOWORK=off go test -tags=interop,etcd_interop -count=1 -v ./test/interop/microv2`。v2.0.0 和 v2.9.1 的官方 Registry 都只读取兼容端口，两版官方旧客户端均能经真实 etcd 调用 Order。原有双向直连回归也通过。v2.0.0 的测试模块显式锁定其旧 etcd 访问链所用的 `github.com/coreos/pkg`。[发现对照](../../test/interop/microv2/etcd_test.go) · [夹具构建](../../test/interop/microv2/fixture_test.go)

@@ -11,8 +11,8 @@ import (
 	"time"
 
 	"github.com/fangfengxiang/kronos/examples/order"
+	"github.com/fangfengxiang/kronos/examples/order/internal/etcdconfig"
 	frameworklog "github.com/fangfengxiang/kronos/framework/log"
-	"github.com/fangfengxiang/kronos/infra/etcd"
 	"github.com/fangfengxiang/kronos/infra/oteltrace"
 	"github.com/fangfengxiang/kronos/infra/prometheus"
 	"github.com/fangfengxiang/kronos/platform/kronos"
@@ -50,7 +50,7 @@ func runCommand(ctx context.Context) (runError error) {
 }
 
 func run(ctx context.Context, optional ...kronos.Option) (runError error) {
-	registry, err := etcd.New(setting("KRONOS_ETCD_ENDPOINT", "127.0.0.1:2379"))
+	registry, err := etcdconfig.Open(setting("KRONOS_ETCD_ENDPOINT", "127.0.0.1:2379"))
 	if err != nil {
 		return err
 	}

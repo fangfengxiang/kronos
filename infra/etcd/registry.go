@@ -3,6 +3,7 @@ package etcd
 
 import (
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -33,6 +34,13 @@ const (
 
 var serviceNamePattern = regexp.MustCompile(`^[a-zA-Z0-9_][a-zA-Z0-9_.-]*$`)
 
+// Config supplies etcd endpoints and optional TLS credentials. TLS is
+// configured before use and requires HTTPS or host:port endpoints.
+type Config struct {
+	Endpoints []string
+	TLS       *tls.Config
+}
+
 // Registry owns an independent client. Withdraw its publications before Close.
 type Registry struct {
 	client          *clientv3.Client
@@ -45,17 +53,25 @@ type Registry struct {
 // New constructs a registry for one or more etcd TCP endpoints.
 // Endpoints can be host:port, HTTP origins or HTTPS origins.
 func New(endpoints ...string) (*Registry, error) {
-	if len(endpoints) == 0 {
+	return NewWithConfig(Config{Endpoints: endpoints})
+}
+
+// NewWithConfig constructs a registry using the supplied connection settings.
+func NewWithConfig(config Config) (*Registry, error) {
+	if len(config.Endpoints) == 0 {
 		return nil, fmt.Errorf("%w: provide at least one etcd endpoint", ErrInvalidConfig)
 	}
-	for index, endpoint := range endpoints {
+	for index, endpoint := range config.Endpoints {
 		if !validEndpoint(endpoint) {
 			return nil, fmt.Errorf("%w: endpoint %d requires a TCP address or HTTP(S) origin", ErrInvalidConfig, index+1)
+		}
+		if config.TLS != nil && strings.HasPrefix(strings.ToLower(endpoint), "http://") {
+			return nil, fmt.Errorf("%w: endpoint %d requires HTTPS when TLS is configured", ErrInvalidConfig, index+1)
 		}
 	}
 	const requestTimeout = 2 * time.Second
 	client, err := clientv3.New(clientv3.Config{
-		Endpoints: slices.Clone(endpoints), DialTimeout: requestTimeout,
+		Endpoints: slices.Clone(config.Endpoints), TLS: config.TLS, DialTimeout: requestTimeout,
 	})
 	if err != nil {
 		return nil, operationError(context.Background(), "open etcd client", err)

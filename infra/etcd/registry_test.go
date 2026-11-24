@@ -1,10 +1,21 @@
 package etcd
 
 import (
+	"crypto/tls"
 	"errors"
 	"slices"
 	"testing"
 )
+
+func TestRejectPlaintextEndpointInTLSConfig(t *testing.T) {
+	registry, err := NewWithConfig(Config{
+		Endpoints: []string{"https://localhost:2379", "HTTP://localhost:2380"},
+		TLS:       &tls.Config{},
+	})
+	if registry != nil || !errors.Is(err, ErrInvalidConfig) {
+		t.Fatalf("mixed TLS endpoints = %v, %v", registry, err)
+	}
+}
 
 func TestRejectInvalidRegistryInputs(t *testing.T) {
 	for _, endpoint := range []string{
