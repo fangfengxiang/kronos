@@ -37,8 +37,10 @@ func TestOrderRecoversBusinessCallsAfterRegistryPartition(t *testing.T) {
 	assertTypedOrder(t, registry, name, "confirmed")
 	assertTypedOrder(t, registry, name, "confirmed", kronos.Protocol(kronos.ProtocolMicroV2))
 
+	grpcOrders := newDiscoveredOrder(t, registry, name, kronos.ProtocolGRPC)
+	microOrders := newDiscoveredOrder(t, registry, name, kronos.ProtocolMicroV2)
 	relay.setPaused(true)
-	assertBoundedDiscoveryFailure(t, registry, name)
+	assertBoundedDiscoveryFailure(t, grpcOrders)
 	expiryContext, cancelExpiry := context.WithTimeout(t.Context(), 24*time.Second)
 	defer cancelExpiry()
 	waitForInstanceCount(t, expiryContext, observer, name, kronos.ProtocolGRPC, 0)
@@ -52,8 +54,8 @@ func TestOrderRecoversBusinessCallsAfterRegistryPartition(t *testing.T) {
 	if recoveredGRPC != grpcAddress || recoveredMicro != microAddress {
 		t.Fatalf("recovered endpoints = %s and %s, want %s and %s", recoveredGRPC, recoveredMicro, grpcAddress, microAddress)
 	}
-	assertTypedOrder(t, registry, name, "confirmed")
-	assertTypedOrder(t, registry, name, "confirmed", kronos.Protocol(kronos.ProtocolMicroV2))
+	awaitRecoveredOrder(t, recoveryContext, grpcOrders, kronos.ProtocolGRPC)
+	awaitRecoveredOrder(t, recoveryContext, microOrders, kronos.ProtocolMicroV2)
 
 	if err := process.command.Process.Signal(syscall.SIGTERM); err != nil {
 		t.Fatal(err)
@@ -123,19 +125,15 @@ func TestOrderCrashExpiresBothProtocolAddresses(t *testing.T) {
 	}
 }
 
-func assertBoundedDiscoveryFailure(t *testing.T, registry *etcd.Registry, name string) {
+func assertBoundedDiscoveryFailure(t *testing.T, orders *order.OrderServiceClient) {
 	t.Helper()
-	client, err := kronos.NewClient(kronos.Registry(registry), kronos.Name(name), kronos.CallTimeout(350*time.Millisecond))
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer client.Close()
 	const concurrentCalls = 12
-	orders := order.NewOrderServiceClient(client)
 	results := make(chan error, concurrentCalls)
 	for range concurrentCalls {
 		go func() {
-			_, err := orders.GetOrder(t.Context(), &order.GetOrderRequest{OrderId: "during-partition"})
+			ctx, cancel := context.WithTimeout(t.Context(), 350*time.Millisecond)
+			defer cancel()
+			_, err := orders.GetOrder(ctx, &order.GetOrderRequest{OrderId: "during-partition"})
 			results <- err
 		}()
 	}
@@ -151,10 +149,37 @@ func assertBoundedDiscoveryFailure(t *testing.T, registry *etcd.Registry, name s
 			t.Fatal("discovery callers did not return within their budgets")
 		}
 	}
-	_, err = orders.GetOrder(ctx, &order.GetOrderRequest{OrderId: "after-shared-lookup-timeout"})
+	_, err := orders.GetOrder(ctx, &order.GetOrderRequest{OrderId: "after-shared-lookup-timeout"})
 	var failure *kronos.Error
 	if !errors.As(err, &failure) || failure.Code != kronos.Unavailable || failure.Reason != "DISCOVERY_FAILED" {
 		t.Fatalf("shared query failure = %v, want DISCOVERY_FAILED", err)
+	}
+}
+
+func awaitRecoveredOrder(t *testing.T, ctx context.Context, orders *order.OrderServiceClient, protocol kronos.WireProtocol) {
+	t.Helper()
+	retry := time.NewTicker(100 * time.Millisecond)
+	defer retry.Stop()
+	const orderID = "after-registry-recovery"
+	for {
+		attempt, cancel := context.WithTimeout(ctx, 3*time.Second)
+		result, err := orders.GetOrder(attempt, &order.GetOrderRequest{OrderId: orderID})
+		cancel()
+		if err == nil {
+			if result.GetOrderId() != orderID || result.GetStatus() != "confirmed" {
+				t.Fatalf("%s call after recovery returned %v", protocol, result)
+			}
+			return
+		}
+		var failure *kronos.Error
+		if !errors.Is(err, context.DeadlineExceeded) && (!errors.As(err, &failure) || failure.Code != kronos.Unavailable) {
+			t.Fatalf("%s call after recovery returned %v", protocol, err)
+		}
+		select {
+		case <-ctx.Done():
+			t.Fatalf("%s did not recover its Order call before the deadline: %v", protocol, err)
+		case <-retry.C:
+		}
 	}
 }
 

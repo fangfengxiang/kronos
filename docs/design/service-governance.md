@@ -23,7 +23,7 @@
 
 ### 注册中心断连与进程崩溃验收
 
-在 Linux 上启动真实 Order 进程和隔离 etcd。用测试进程持有的回环 TCP 中继中断 Order 和一组客户端到 etcd 的连接。直连 etcd 的观察端验证两个地址随租约消失，发现受阻的并发调用在各自预算内返回，已知地址的 RPC 仍可完成。恢复连接后核对续约失败、丢失租约及重新发布的事件，并用经过中继的客户端按服务名完成两种协议的业务调用。
+在 Linux 上启动真实 Order 进程和隔离 etcd。用测试进程持有的回环 TCP 中继中断 Order 和一组客户端到 etcd 的连接。直连 etcd 的观察端验证两个地址随租约消失，发现受阻的并发调用在各自预算内返回，已知地址的 RPC 仍可完成。恢复连接后核对续约失败、丢失租约及重新发布的事件。服务端与客户端的 etcd 连接各自退避并重连。验收让经历过发现失败的客户端继续按服务名调用，在同一个 22 秒恢复预算内取得两种协议的真实订单响应。[gRPC 连接退避](https://github.com/grpc/grpc/blob/master/doc/connection-backoff.md)
 
 用另一组服务名启动独立 Order 进程。确认发现调用后强制结束该测试进程，观察原记录保留到租约过期，然后核对两个地址均被删除、重新发现返回 `NO_INSTANCES`。测试中继、连接和子进程均由 Go 测试清理。[etcd 租约行为](https://etcd.io/docs/v3.6/dev-guide/interacting_v3/#grant-leases)
 
@@ -47,7 +47,7 @@
 | T04 | Kronos MicroRPC 客户端发现并调用官方 go-micro v2 服务端 | [Order 到官方服务端](../../test/interop/microv2/etcd_test.go) |
 | T05 | 原生 gRPC 客户端成功调用同一服务 | [标准 gRPC 进程调用](../../test/interop/microv2/etcd_test.go) |
 | T06 | 两个监听按协议发布地址，并进入同一个业务实例 | [同一实例的两路业务](../../test/interop/microv2/drain_test.go) |
-| T07 | 多实例轮询、故障绕行、摘除及下一次调用成功 | [多实例联调](../../test/interop/microv2/replicas_test.go) |
+| T07 | 多实例轮询、故障绕行、摘除、下一次调用成功及重试上限 | [多实例联调](../../test/interop/microv2/replicas_test.go) |
 | T08 | etcd 失联时续约失败、租约过期，恢复后新请求成功 | [断连与业务恢复](../../test/interop/microv2/resilience_test.go) |
 | T09 | 崩溃进程退出后，其两个地址由 etcd 移除 | [强制退出与过期](../../test/interop/microv2/resilience_test.go) |
 | T10 | 摘流在排空之前，关停在预算内返回 | [实际双协议关停](../../test/interop/microv2/drain_test.go) |
@@ -65,6 +65,7 @@
 - Order 进程的 21 行装配已运行。真实 etcd 上的原生 gRPC 与两版官方旧客户端通过服务名路径对照成功，`SIGTERM` 后两个地址注销。[统一服务端与实测](unary-service-api.md#实测)
 - Kronos 客户端通过真实 etcd 调用两版官方旧服务端，并在两种协议上验证多实例选择与绕行。生成的 Order 客户端及命令行入口使用同一公开 API。[发现客户端与实测](discovered-rpc-client.md#实测)
 - 真实 etcd 的隔离网络验收两个故障场景。Order 进程与 etcd 断连时，12 个并发发现调用在 350 毫秒的各自预算到期时返回，直连业务仍可调用。两个地址随租约过期。恢复连接后，日志记录续约失败、租约丢失、重新发布和恢复，客户端通过原服务名再次取得两种协议的订单响应。另一个 Order 进程被强制结束后，两种地址约 16 秒内消失，两种客户端均返回 `NO_INSTANCES`。[断连和崩溃测试](../../test/interop/microv2/resilience_test.go)
+- Linux amd64 首次复跑观测到服务端已重新发布时，客户端还在连接退避。按原预算继续发起真实调用后，经历发现失败的同一个 gRPC 客户端和复用受影响 registry 的 MicroRPC 客户端均取得正确订单。Linux amd64 运行 `GOWORK=off go test -tags=interop,etcd_interop -count=3 -v ./test/interop/microv2` 三轮通过。Linux arm64 运行同一入口并使用 `-count=2 -run '^Test(DiscoveredOrder|OrderRecoversBusinessCalls)'`，两轮通过。[断连恢复实测](../../test/interop/microv2/resilience_test.go)
 - 真实 etcd 联调四轮通过。两个端口共用一个 Order 业务实现。摘流期拒绝后续请求，注销后完成在途调用，并在正常与强制退出后释放监听。两种协议分别验证了 Deadline 和 Cancel。[应用生命周期实测](app-lifecycle.md#实测与复盘)
 - Order 服务端和客户端二进制在 Linux 编译并实跑。客户端的默认 gRPC 和显式 MicroRPC 都按服务名返回 `订单-03 confirmed`，调用两版旧服务端均得到 `订单-03 legacy-confirmed`。启动与测试命令进入专用 CI 任务。[运行 Order](../guide/README.md#运行-order) · [Linux 验收](go-verification.md#order-治理验收)
 

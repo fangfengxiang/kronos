@@ -14,6 +14,8 @@ import (
 	"github.com/fangfengxiang/kronos/examples/order"
 	"github.com/fangfengxiang/kronos/infra/etcd"
 	"github.com/fangfengxiang/kronos/platform/kronos"
+	"google.golang.org/protobuf/reflect/protodesc"
+	"google.golang.org/protobuf/reflect/protoreflect"
 )
 
 func TestDiscoveredOrderRotatesAndBypassesAnUnavailableReplica(t *testing.T) {
@@ -56,6 +58,88 @@ func TestDiscoveredOrderRotatesAndBypassesAnUnavailableReplica(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestDiscoveredOrderBoundsRetriesByProtobufMethod(t *testing.T) {
+	registry := openTestRegistry(t)
+	orderContract := (&order.GetOrderRequest{}).ProtoReflect().Descriptor().ParentFile()
+	readMethod := orderContract.Services().ByName("OrderService").Methods().ByName("GetOrder")
+	unmarkedContract := protodesc.ToFileDescriptorProto(orderContract)
+	unmarkedContract.Service[readMethod.Parent().Index()].Method[readMethod.Index()].Options = nil
+	unmarkedFile, err := protodesc.NewFile(unmarkedContract, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	unmarkedMethod := unmarkedFile.Services().ByName("OrderService").Methods().ByName("GetOrder")
+
+	for _, protocol := range orderProtocols {
+		t.Run(string(protocol), func(t *testing.T) {
+			name := "orders.retry-limit." + rand.Text()
+			replicas := make(map[string]*orderReplica, 3)
+			for _, label := range []string{"a", "b", "c"} {
+				replica := &orderReplica{label: label}
+				replicas[label] = replica
+				runOrderReplica(t, registry, name, replica)
+			}
+			waitForInstances(t, registry, name, protocol, 3)
+			options := []kronos.Option{kronos.Registry(registry), kronos.Name(name), kronos.Protocol(protocol)}
+			roundRobinClient := newRetryClient(t, options)
+			orders := order.NewOrderServiceClient(roundRobinClient)
+			var inSelectionOrder [3]*orderReplica
+			for i := range inSelectionOrder {
+				label := getOrderStatus(t, orders)
+				replica := replicas[label]
+				if replica == nil {
+					t.Fatalf("round robin returned a missing or repeated replica %q", label)
+				}
+				delete(replicas, label)
+				inSelectionOrder[i] = replica
+			}
+			inSelectionOrder[0].unavailable.Store(true)
+			inSelectionOrder[1].unavailable.Store(true)
+
+			for _, policy := range []struct {
+				name  string
+				rpc   protoreflect.MethodDescriptor
+				calls [3]int32
+			}{
+				{name: "unmarked", rpc: unmarkedMethod, calls: [3]int32{1, 0, 0}},
+				{name: "read_only", rpc: readMethod, calls: [3]int32{1, 1, 0}},
+			} {
+				t.Run(policy.name, func(t *testing.T) {
+					client := newRetryClient(t, options)
+					var baseline [3]int32
+					for i, replica := range inSelectionOrder {
+						baseline[i] = replica.calls.Load()
+					}
+					ctx, cancel := context.WithTimeout(t.Context(), 3*time.Second)
+					defer cancel()
+					err := client.Invoke(ctx, policy.rpc, &order.GetOrderRequest{OrderId: "retry-limit"}, new(order.GetOrderResponse))
+					var failure *kronos.Error
+					if !errors.As(err, &failure) || failure.Code != kronos.Unavailable || failure.Reason != "SERVICE_UNAVAILABLE" {
+						t.Fatalf("call error = %v, want SERVICE_UNAVAILABLE", err)
+					}
+					var calls [3]int32
+					for i, replica := range inSelectionOrder {
+						calls[i] = replica.calls.Load() - baseline[i]
+					}
+					if calls != policy.calls {
+						t.Errorf("replica calls = %v, want %v", calls, policy.calls)
+					}
+				})
+			}
+		})
+	}
+}
+
+func newRetryClient(t *testing.T, options []kronos.Option) *kronos.Client {
+	t.Helper()
+	client, err := kronos.NewClient(options...)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = client.Close() })
+	return client
 }
 
 type orderReplica struct {

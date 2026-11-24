@@ -21,11 +21,13 @@ go-micro v2 通过纳秒级 `Timeout` 传递剩余预算。Kronos 兼容监听�
 - 默认 gRPC 和显式 MicroRPC 都经 etcd 找到 Order。调用代码通过生成类型使用 Kronos。
 - 在真实 etcd 启动两版官方 go-micro v2 服务端，Kronos 仅按服务名发现并读取业务响应。
 - 验证同一服务的轮询、实例消失、失败绕过、可重试边界、连接关闭及取消。首个发现方被取消时，其他有预算的调用仍可使用同一查询结果。
+- 同一服务有三个实例时，让排序后的前两个实例返回不可用。按两种协议检查尝试次数。未声明幂等的方法只进入第一个实例，声明只读的方法进入前两个实例。记录各实例的实际调用次数，并核对客户端返回稳定的不可用错误。
 - 阻塞一次查询，连续结束多个等待方，核对期间只发起一次查询、共享信号随后释放。地址消失时关闭空闲连接，仍占用的连接由最后一个在途调用释放。客户端重复关闭保持每条连接只关闭一次。
 
 ## 实测
 
 - Go 1.25.0、Ubuntu 24.04 Linux arm64 和真实 etcd v3.6.16，运行 `GOWORK=off go test -tags=interop,etcd_interop -count=1 -v ./test/interop/microv2`。默认与显式旧协议客户端都通过服务名调用 Order。Kronos 发现并调用 v2.0.0、v2.9.1 的实际官方进程，得到旧服务的业务数据和稳定参数错误。默认 gRPC 对只有旧 RPC 节点的服务返回 `NO_INSTANCES`。[双向业务互通](../../test/interop/microv2/etcd_test.go)
 - 同一 Linux 实测中，两种协议均在两个真实发布的实例之间轮询。一次实例不可用后，带幂等标记的 Order 查询切到另一个节点，随后在冷却期及实例摘除后继续成功。[多实例与绕行](../../test/interop/microv2/replicas_test.go)
+- Linux 使用真实 etcd 运行 `GOWORK=off go test -tags=interop,etcd_interop -count=8 -run '^TestDiscoveredOrder' -v ./test/interop/microv2`。三个实例中前两个返回不可用时，gRPC 与 MicroRPC 的未标记方法实际进入首个实例一次，只读方法进入前两个实例各一次。两种调用均返回 `SERVICE_UNAVAILABLE`。[重试边界](../../test/interop/microv2/replicas_test.go)
 - macOS arm64 的 Order 竞态测试五轮通过，确认共享查询保留独立等待期限、关闭取消查询和未知协议错误。`go run ./platform/verify test` 与 `go run ./platform/verify deps` 通过，Linux 的 `go run ./platform/verify proto` 通过。[客户端边界测试](../../examples/order/client_test.go)
 - macOS arm64 运行 `GOWORK=off go -C platform/kronos test -race -count=10 ./...`，64 个短期限调用依次结束时仍只发起一次查询，查询结束后完成信号释放。验证未变地址复用连接，已移除地址的连接按使用数量关闭。`GOWORK=off go test -race -count=5 ./examples/order/...` 与真实 etcd Linux 互通套件同样通过。[发现状态与连接测试](../../platform/kronos/discovery_test.go)
