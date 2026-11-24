@@ -18,6 +18,10 @@
 
 Go 1.25.0、Ubuntu 24.04 Linux arm64 的 `GOWORK=off go -C framework/app test -count=5 -run '^TestReloadDrainsAcceptedStream$' .` 通过。第一个候选在发布失败时释放自己的资源，旧进程继续接受请求。第二个候选接管两个继承地址，旧进程释放发布并完整交付先前的 SSE。模块常规回归与 Assistant 原命令重载也通过。[真实进程夹具](../../framework/app/reload_test.go)
 
+统一应用通过 `App.RunWithReload` 把它拥有的发布和撤销动作交给上述入口。命令拥有 PID 文件和重载信号，应用复用原有监听与协议配置。Order 用 `KRONOS_ORDER_RELOAD_PID_FILE` 启用该路径，配置互异的监听地址，并通过相同的 etcd 发现验证两代的 gRPC 和 MicroRPC。启用 HTTP 时复用原地址。SIGTERM 结束候选并撤销其发布。回退时取消 PID 文件配置，沿原启动路径运行。
+
+Go 1.25.0、Ubuntu 24.04 Linux arm64、官方 etcd v3.6.16 的 `GOWORK=off go test -tags=etcd_interop -count=3 -run '^TestOrderReloadKeepsPublishedRPCAndHTTPListeners$' -v ./test/interop/microv2` 三轮通过。每轮用两代实际进程验证相同的 gRPC、MicroRPC 和 HTTP 地址，SIGTERM 后两个 RPC 地址从注册中心消失，三个监听端口可以重新绑定。完整旧协议与治理回归、分层、生成和全仓竞态检查通过。[Order 实际进程](../../test/interop/microv2/reload_test.go)
+
 沿用参考入口的显式信号处理与摘流顺序，以就绪反馈和共同的关停预算控制交接。Cloudflare tableflip 负责文件描述符继承、候选进程和就绪确认。Kronos 负责同一应用所有监听器的就绪门槛与关停。Kratos 负责各传输的排空。已有连接由接收它的进程收尾，后续连接可由新进程接收。[Cloudflare tableflip](https://pkg.go.dev/github.com/cloudflare/tableflip@v1.2.3) · [NGINX 进程交接](https://nginx.org/en/docs/control.html#upgrade)
 
 监听器接力维持 TCP 监听队列。关停窗口内还未进入处理器的请求仍受传输的连接关闭语义约束，客户端可按原有幂等与重连规则处理。
@@ -34,7 +38,7 @@ Assistant 候选启动时重新读取 `-config` 路径。文件读取或校验�
 | --- | --- | --- |
 | Linux | 支持进程级重载，是首要部署平台。 | Linux amd64 交叉构建通过。Ubuntu CI 通过真实进程接力与在途流排空测试。 |
 | macOS | 支持进程级重载。 | macOS arm64 真实进程接力与旧流排空通过。 |
-| Windows | 上游不支持进程级重载。普通启动时省略 `-reload-pid-file`，启用重载会返回平台不支持错误。 | 上游声明与接入源码已核对。 |
+| Windows | Tableflip v1.2.3 的进程级重载适用于 Linux 与 macOS。Windows 上省略 Assistant 的 `-reload-pid-file` 和 Order 的 `KRONOS_ORDER_RELOAD_PID_FILE`，使用普通启动。 | 上游声明与接入源码已核对。 |
 
 [上游平台说明](https://pkg.go.dev/github.com/cloudflare/tableflip@v1.2.3#hdr-Overview)
 

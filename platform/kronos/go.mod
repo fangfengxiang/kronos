@@ -3,7 +3,7 @@ module github.com/fangfengxiang/kronos/platform/kronos
 go 1.25.0
 
 require (
-	github.com/fangfengxiang/kronos/framework/app v0.0.0-20261124105518-076c829db409
+	github.com/fangfengxiang/kronos/framework/app v0.0.0-20261124172535-c8ee195153af
 	github.com/fangfengxiang/kronos/framework/localization v0.0.0-20261124105518-076c829db409
 	github.com/fangfengxiang/kronos/framework/request v0.0.0-20261123055539-816a8d9cbbb5
 	github.com/fangfengxiang/kronos/framework/rpc v0.0.0-20261124105518-076c829db409

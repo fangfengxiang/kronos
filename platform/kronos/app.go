@@ -8,6 +8,7 @@ import (
 	"net"
 	"net/http"
 	"net/netip"
+	"os"
 	"slices"
 	"strings"
 	"sync"
@@ -86,6 +87,19 @@ func (application *App) Register(definition Service) error {
 
 // Run starts the configured listeners and blocks until shutdown completes.
 func (application *App) Run(ctx context.Context) error {
+	return application.run(ctx, nil, nil)
+}
+
+// ReloadConfig controls how long a replacement can start and where to report its PID.
+type ReloadConfig = app.ReloadConfig
+
+// RunWithReload runs with inherited listeners and publishes a replacement
+// before handing off. The caller owns the reload notifications.
+func (application *App) RunWithReload(ctx context.Context, config ReloadConfig, requests <-chan os.Signal) error {
+	return application.run(ctx, &config, requests)
+}
+
+func (application *App) run(ctx context.Context, reload *ReloadConfig, requests <-chan os.Signal) error {
 	application.mu.Lock()
 	if application.started {
 		application.mu.Unlock()
@@ -153,10 +167,14 @@ func (application *App) Run(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	if config.registry == nil {
-		return engine.Run(ctx)
+	var publish app.ReadyHook
+	if config.registry != nil {
+		publish = application.publish
 	}
-	return engine.RunWithReadyHook(ctx, application.publish)
+	if reload != nil {
+		return engine.RunWithReloadAndReadyHook(ctx, *reload, requests, publish)
+	}
+	return engine.RunWithReadyHook(ctx, publish)
 }
 
 func (application *App) publish(ctx context.Context, endpoints []app.Endpoint) (func(context.Context) error, error) {

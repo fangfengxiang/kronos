@@ -190,10 +190,11 @@ func startOrderProcess(t *testing.T, endpoint, serviceName string, environment .
 	t.Helper()
 	binary := buildOrderCommand(t, "order")
 	process := &orderProcess{command: exec.Command(binary), done: make(chan struct{})}
+	process.command.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 	process.command.Env = append(os.Environ(),
 		"KRONOS_ETCD_ENDPOINT="+endpoint, "KRONOS_ORDER_NAME="+serviceName,
 		"KRONOS_ORDER_GRPC=127.0.0.1:0", "KRONOS_ORDER_MICRORPC=127.0.0.1:0", "KRONOS_ORDER_ADVERTISE_HOST=",
-		"KRONOS_ORDER_DIAGNOSTICS=", "KRONOS_ORDER_TRACE_ENDPOINT=",
+		"KRONOS_ORDER_DIAGNOSTICS=", "KRONOS_ORDER_TRACE_ENDPOINT=", "KRONOS_ORDER_HTTP=", "KRONOS_ORDER_RELOAD_PID_FILE=",
 	)
 	process.command.Env = append(process.command.Env, environment...)
 	output, err := os.CreateTemp(t.TempDir(), "order-log")
@@ -211,7 +212,7 @@ func startOrderProcess(t *testing.T, endpoint, serviceName string, environment .
 		close(process.done)
 	}()
 	t.Cleanup(func() {
-		_ = process.command.Process.Kill()
+		_ = syscall.Kill(-process.command.Process.Pid, syscall.SIGKILL)
 		select {
 		case <-process.done:
 		case <-time.After(5 * time.Second):

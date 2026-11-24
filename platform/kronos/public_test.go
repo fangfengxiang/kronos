@@ -3,6 +3,7 @@ package kronos_test
 import (
 	"context"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/fangfengxiang/kronos/platform/kronos"
@@ -38,6 +39,7 @@ var (
 	_ interface {
 		Register(kronos.Service) error
 		Run(context.Context) error
+		RunWithReload(context.Context, kronos.ReloadConfig, <-chan os.Signal) error
 	} = (*kronos.App)(nil)
 	_ interface {
 		Invoke(context.Context, protoreflect.MethodDescriptor, proto.Message, proto.Message) error

@@ -70,7 +70,22 @@ func run(ctx context.Context, optional ...kronos.Option) (runError error) {
 	if err := application.Register(order.BindOrderService(order.NewService())); err != nil {
 		return err
 	}
-	return application.Run(ctx)
+	return runApplication(ctx, application)
+}
+
+func runApplication(ctx context.Context, application *kronos.App) error {
+	pidFile := os.Getenv("KRONOS_ORDER_RELOAD_PID_FILE")
+	if pidFile == "" {
+		return application.Run(ctx)
+	}
+	reloads := make(chan os.Signal, 1)
+	signal.Notify(reloads, syscall.SIGHUP)
+	defer signal.Stop(reloads)
+	return application.RunWithReload(ctx, kronos.ReloadConfig{PIDFile: pidFile, StartupTimeout: 30 * time.Second,
+		OnError: func(err error) {
+			slog.WarnContext(ctx, "Order reload failed", "event", "reload_failed", "error", err.Error())
+		},
+	}, reloads)
 }
 
 func orderServiceName() string {
