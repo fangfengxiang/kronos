@@ -2,17 +2,17 @@
 
 ## 应用入口
 
-Order 命令通过 `platform/kronos` 组合发现名、显式注入的 registry 及独立的 `GRPC`、`MicroRPC` 监听。用 `app.Register(order.BindOrderService(implementation))` 注册一份类型化业务实现。生成函数从 Proto 取得服务、方法及消息类型。业务实现接收标准上下文及业务消息。命令将信号上下文交给 `app.Run`，并在运行结束后关闭它创建的 registry。
+Order 命令通过 `platform/kronos` 组合发现名、显式注入的 registry 及独立的 `GRPC`、`MicroRPC` 监听。部署也可启用 `HTTP`，由 Proto 提供路由。用 `app.Register(order.BindOrderService(implementation))` 注册一份类型化业务实现。生成函数从 Proto 取得服务、方法及消息类型。业务实现接收标准上下文及业务消息。命令将信号上下文交给 `app.Run`，并在运行结束后关闭它创建的 registry。[统一 HTTP 监听](unified-http.md)
 
 `kronos.New` 验证装配选项，`Register` 核对 Protobuf 描述符和方法签名。应用只能运行一次，只能在运行前注册。空服务、无监听、重复服务及不兼容方法应在接入连接前报告。直接使用同一个 TCP 地址时，现有生命周期负责检测绑定冲突并释放资源。配置 `:0` 可独立申请端口。
 
 ## 协议与发现
 
 - gRPC 服务名和全方法名来自原始 Protobuf 描述符。使用 Kratos 的 gRPC 传输和 grpc-go 的服务注册、编解码、拦截器。go-micro v2 通过现有 `infra/microv2` 处理信封，兼容端点为 Proto 短服务名与方法名拼接，例如 `OrderService.GetOrder`。兼容协议的 `Micro-Service` 使用显式发现名。
-- 公开调用类型为 Kronos 与 Protobuf，SDK 类型留在传输实现。服务端用同一个有类型的回调处理两种协议。沿用 `rpc.Error`、取消和期限语义，并用现有请求恢复守卫捕获业务 panic。
+- 公开调用类型为 Kronos 与 Protobuf，SDK 类型留在传输实现。服务端用同一个有类型的回调处理三路一元入口。沿用 `rpc.Error`、取消和期限语义，并用现有请求恢复守卫捕获业务 panic。
 - 绑定就绪后，应用将实际端口和通告主机交给发布钩子。显式绑定可达的地址可以直接通告。通配监听默认通告本地回环，容器或远端部署用 `AdvertiseHost` 指定调用方可达的主机。应用先撤销就绪、撤销注册，再排空。缓存节点新请求在应用入口被拒绝。[生命周期](app-lifecycle.md) · [分协议地址](../adr/0009-discovery-protocols.md)
 
-生成器在开启选项的服务上增加类型化装配函数。既有 Assistant 和 TextBackend 生成策略继续沿用各自模板。当前统一入口接收一元服务。其他传输保持在已有装配路径，依据实际消费扩展。[gRPC Go 服务注册](https://pkg.go.dev/google.golang.org/grpc@v1.82.1#ServiceRegistrar) · [Protobuf 公开契约](protobuf-go-contract.md)
+生成器在开启选项的服务上增加类型化装配函数。既有 Assistant 和 TextBackend 生成策略继续沿用各自模板。当前统一入口接收一元服务。流式传输使用 Assistant 的既有装配路径，依据实际消费扩展。[gRPC Go 服务注册](https://pkg.go.dev/google.golang.org/grpc@v1.82.1#ServiceRegistrar) · [Protobuf 公开契约](protobuf-go-contract.md)
 
 ## 通过条件
 

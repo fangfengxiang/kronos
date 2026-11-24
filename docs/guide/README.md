@@ -56,6 +56,13 @@ GOWORK=off go run ./examples/order/cmd/order-client -protocol micro-v2 -id 订�
 
 两个命令均返回 `订单-01 confirmed`。使用自定义服务名时在客户端带上 `-service`。修改 Order 的 Proto 后执行 `go run ./platform/verify generate` 更新公开契约。[Order Proto](../../examples/order/api/kronos/order/v1/order.proto) · [治理验收](../design/service-governance.md)
 
+设置 `KRONOS_ORDER_HTTP=127.0.0.1:9092` 可在同一应用中启用 Proto 声明的 HTTP 路由。路由接到同一个 Order 实现，地址由部署显式配置。[统一 HTTP 契约](../design/unified-http.md)
+
+```sh
+curl -H 'Content-Type: application/json' -d '{"orderId":"订单-01"}' \
+  http://127.0.0.1:9092/v1/orders:get
+```
+
 在 Order 进程设置 `KRONOS_ORDER_DIAGNOSTICS=127.0.0.1:9190` 可启用 `/livez`、`/readyz` 和 Prometheus `/metrics`。诊断端口单独绑定。应用从已经注册的 Proto 绑定取得方法路径，添加方法后重新生成并注册便会纳入指标。观察可发现状态时按对应协议查询 etcd，再执行 Order 调用确认业务结果。[Order 运行观测](../design/order-diagnostics.md)
 
 应用可用 `kronos.Observability(kronos.ObservabilityConfig{DiagnosticsAddress: address, Metrics: metrics, Tracer: tracer, Logger: logger})` 一次交付观测配置。只提供地址即可开启探针。指标使用一个可抓取的实例，应用创建的 tracer 在排空后由应用入口关闭。[Order 接线](../../examples/order/cmd/order/main.go)

@@ -60,6 +60,7 @@ func run(ctx context.Context, optional ...kronos.Option) (runError error) {
 		kronos.Registry(registry),
 		kronos.GRPC(setting("KRONOS_ORDER_GRPC", "127.0.0.1:9090")),
 		kronos.MicroRPC(setting("KRONOS_ORDER_MICRORPC", "127.0.0.1:9091")),
+		kronos.HTTP(os.Getenv("KRONOS_ORDER_HTTP")),
 		kronos.AdvertiseHost(os.Getenv("KRONOS_ORDER_ADVERTISE_HOST")),
 	}
 	application, err := kronos.New(append(options, optional...)...)

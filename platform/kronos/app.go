@@ -38,7 +38,12 @@ func New(options ...Option) (*App, error) {
 		return nil, errors.New("Kronos requires a service name")
 	}
 	if config.grpcAddress == "" && config.microRPCAddress == "" {
-		return nil, errors.New("Kronos requires at least one listener")
+		if config.httpAddress == "" {
+			return nil, errors.New("Kronos requires at least one listener")
+		}
+		if config.registry != nil {
+			return nil, errors.New("Kronos registry requires an RPC listener")
+		}
 	}
 	if config.shutdownTimeout <= 0 {
 		return nil, errors.New("Kronos shutdown timeout must be positive")
@@ -118,6 +123,12 @@ func (application *App) Run(ctx context.Context) error {
 		bindings = append(bindings, app.Binding{Name: string(rpc.ProtocolMicroV2), Address: config.microRPCAddress,
 			Build: func(listener net.Listener) (app.Server, error) {
 				return transport.MicroRPCServer(listener, config.name, application.observeServices(services, rpc.ProtocolMicroV2, isReady))
+			}})
+	}
+	if config.httpAddress != "" {
+		bindings = append(bindings, app.Binding{Name: "http", Address: config.httpAddress,
+			Build: func(listener net.Listener) (app.Server, error) {
+				return transport.UnaryHTTPServer(listener, application.observeServices(services, "http", isReady))
 			}})
 	}
 	if config.diagnostics != "" {

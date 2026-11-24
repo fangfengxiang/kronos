@@ -44,6 +44,8 @@ sequenceDiagram
 
 gRPC 的方法路径来自 Proto 全服务名和方法名。MicroRPC 使用明确的发现名以及 Proto 短服务名和方法名。官方旧客户端读取既有 etcd 前缀，通过 MicroRPC 接入同一用例。标准 gRPC 与旧协议客户端各读自己的端口记录，共同使用一次 etcd 发布事务的实例 ID 和租约。[注册记录](../adr/0009-discovery-protocols.md) · [官方双向互通](../../test/interop/microv2/etcd_test.go)
 
+启用 HTTP 时，调用者使用部署提供的地址与 Proto 注解声明的路由。请求与上述 RPC 路径共享业务用例、就绪判定和观测。HTTP 监听随同一个应用排空，注册中心继续发布两个 RPC 协议的地址。[HTTP 接入与实测](../design/unified-http.md)
+
 ## 生命周期与可发现状态
 
 ```mermaid

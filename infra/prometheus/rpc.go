@@ -78,16 +78,20 @@ func (metrics *RPCMetrics) addOperations(operations []string) {
 	for _, operation := range operations {
 		for _, protocol := range []string{"grpc", "micro-v2"} {
 			for _, side := range []string{"client", "server"} {
-				labels := rpcLabels{operation: operation, protocol: protocol, side: side}
-				if _, exists := metrics.series[labels]; exists {
-					continue
-				}
-				metrics.series[labels] = rpcSeries{
-					outcomes: requestOutcomes(metrics.counts, metrics.durations, operation, protocol, side),
-					inFlight: metrics.inFlight.WithLabelValues(operation, protocol, side),
-				}
+				metrics.addSeries(rpcLabels{operation: operation, protocol: protocol, side: side})
 			}
 		}
+		metrics.addSeries(rpcLabels{operation: operation, protocol: "http", side: "server"})
+	}
+}
+
+func (metrics *RPCMetrics) addSeries(labels rpcLabels) {
+	if _, exists := metrics.series[labels]; exists {
+		return
+	}
+	metrics.series[labels] = rpcSeries{
+		outcomes: requestOutcomes(metrics.counts, metrics.durations, labels.operation, labels.protocol, labels.side),
+		inFlight: metrics.inFlight.WithLabelValues(labels.operation, labels.protocol, labels.side),
 	}
 }
 

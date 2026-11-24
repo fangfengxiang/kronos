@@ -21,6 +21,7 @@ var (
 	_ func(kronos.RegistryProvider) kronos.Option                                = kronos.Registry
 	_ func(string) kronos.Option                                                 = kronos.GRPC
 	_ func(string) kronos.Option                                                 = kronos.MicroRPC
+	_ func(string) kronos.Option                                                 = kronos.HTTP
 	_ func(kronos.WireProtocol) kronos.Option                                    = kronos.Protocol
 	_ func(time.Duration) kronos.Option                                          = kronos.CallTimeout
 	_ func(kronos.RPCMetrics) kronos.Option                                      = kronos.Metrics

@@ -2,11 +2,17 @@ syntax = "proto3";
 
 package kronos.order.v1;
 
+import "google/api/annotations.proto";
+
 option go_package = "github.com/fangfengxiang/kronos/examples/order/internal/wire/kronos/order/v1;orderv1";
 
 service OrderService {
   rpc GetOrder(GetOrderRequest) returns (GetOrderResponse) {
     option idempotency_level = NO_SIDE_EFFECTS;
+    option (google.api.http) = {
+      post: "/v1/orders:get"
+      body: "*"
+    };
   }
 }
 

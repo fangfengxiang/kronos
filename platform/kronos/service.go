@@ -91,7 +91,8 @@ func (service Service) prepare() (transport.Service, error) {
 		registered[method.name] = struct{}{}
 		inputType := method.input.ProtoReflect().Type()
 		result.Methods = append(result.Methods, transport.Method{
-			Name: string(method.name), NewRequest: func() proto.Message { return inputType.New().Interface() }, Invoke: method.invoke,
+			Name: string(method.name), Descriptor: descriptor,
+			NewRequest: func() proto.Message { return inputType.New().Interface() }, Invoke: method.invoke,
 		})
 	}
 	return result, nil

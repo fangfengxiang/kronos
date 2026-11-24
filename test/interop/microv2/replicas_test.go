@@ -16,6 +16,7 @@ import (
 	"github.com/fangfengxiang/kronos/platform/kronos"
 	"google.golang.org/protobuf/reflect/protodesc"
 	"google.golang.org/protobuf/reflect/protoreflect"
+	"google.golang.org/protobuf/reflect/protoregistry"
 )
 
 func TestDiscoveredOrderRotatesAndBypassesAnUnavailableReplica(t *testing.T) {
@@ -84,7 +85,7 @@ func TestDiscoveredOrderBoundsRetriesByProtobufMethod(t *testing.T) {
 	readMethod := orderContract.Services().ByName("OrderService").Methods().ByName("GetOrder")
 	unmarkedContract := protodesc.ToFileDescriptorProto(orderContract)
 	unmarkedContract.Service[readMethod.Parent().Index()].Method[readMethod.Index()].Options = nil
-	unmarkedFile, err := protodesc.NewFile(unmarkedContract, nil)
+	unmarkedFile, err := protodesc.NewFile(unmarkedContract, protoregistry.GlobalFiles)
 	if err != nil {
 		t.Fatal(err)
 	}

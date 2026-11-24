@@ -7,6 +7,7 @@
 package orderv1
 
 import (
+	_ "google.golang.org/genproto/googleapis/api/annotations"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
@@ -167,7 +168,7 @@ var File_kronos_order_v1_order_proto protoreflect.FileDescriptor
 
 const file_kronos_order_v1_order_proto_rawDesc = "" +
 	"\n" +
-	"\x1bkronos/order/v1/order.proto\x12\x0fkronos.order.v1\",\n" +
+	"\x1bkronos/order/v1/order.proto\x12\x0fkronos.order.v1\x1a\x1cgoogle/api/annotations.proto\",\n" +
 	"\x0fGetOrderRequest\x12\x19\n" +
 	"\border_id\x18\x01 \x01(\tR\aorderId\"E\n" +
 	"\x10GetOrderResponse\x12\x19\n" +
@@ -175,9 +176,9 @@ const file_kronos_order_v1_order_proto_rawDesc = "" +
 	"\x06status\x18\x02 \x01(\tR\x06status*N\n" +
 	"\vErrorReason\x12\x1c\n" +
 	"\x18ERROR_REASON_UNSPECIFIED\x10\x00\x12!\n" +
-	"\x1dERROR_REASON_INVALID_ORDER_ID\x10\x012d\n" +
-	"\fOrderService\x12T\n" +
-	"\bGetOrder\x12 .kronos.order.v1.GetOrderRequest\x1a!.kronos.order.v1.GetOrderResponse\"\x03\x90\x02\x01BVZTgithub.com/fangfengxiang/kronos/examples/order/internal/wire/kronos/order/v1;orderv1b\x06proto3"
+	"\x1dERROR_REASON_INVALID_ORDER_ID\x10\x012}\n" +
+	"\fOrderService\x12m\n" +
+	"\bGetOrder\x12 .kronos.order.v1.GetOrderRequest\x1a!.kronos.order.v1.GetOrderResponse\"\x1c\x82\xd3\xe4\x93\x02\x13:\x01*\"\x0e/v1/orders:get\x90\x02\x01BVZTgithub.com/fangfengxiang/kronos/examples/order/internal/wire/kronos/order/v1;orderv1b\x06proto3"
 
 var (
 	file_kronos_order_v1_order_proto_rawDescOnce sync.Once

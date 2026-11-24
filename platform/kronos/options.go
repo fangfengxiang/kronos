@@ -63,6 +63,7 @@ type settings struct {
 	registry         RegistryProvider
 	grpcAddress      string
 	microRPCAddress  string
+	httpAddress      string
 	diagnostics      string
 	scrape           http.Handler
 	scrapeRPCMetrics bool
@@ -103,6 +104,11 @@ func GRPC(address string) Option {
 // MicroRPC configures a go-micro v2 unary RPC listener.
 func MicroRPC(address string) Option {
 	return func(config *settings) { config.microRPCAddress = address }
+}
+
+// HTTP configures a unary HTTP listener for methods annotated with google.api.http.
+func HTTP(address string) Option {
+	return func(config *settings) { config.httpAddress = address }
 }
 
 // Metrics borrows a unary RPC observer for the app or client. Nil disables it.

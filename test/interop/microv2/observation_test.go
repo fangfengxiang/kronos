@@ -124,7 +124,12 @@ func assertDrainRPCLogs(t *testing.T, path, name string) {
 		}
 	}
 	slices.Sort(completed)
-	if !slices.Equal(started, []int64{1, 2}) || !slices.Equal(completed, []int64{0, 1}) || !slices.Equal(rejected, []int64{2, 2}) {
+	for _, expected := range []eventKey{{"http", "rpc_started", ""}, {"http", "rpc_finished", "OK"}, {"http", "rpc_finished", "UNAVAILABLE"}} {
+		if count := counts[expected]; count != 1 {
+			t.Errorf("%v logged %d times, want one event", expected, count)
+		}
+	}
+	if !slices.Equal(started, []int64{1, 2, 3}) || !slices.Equal(completed, []int64{0, 1, 2}) || !slices.Equal(rejected, []int64{3, 3, 3}) {
 		t.Errorf("in-flight counts = started %v, completed %v, rejected %v", started, completed, rejected)
 	}
 }

@@ -5,10 +5,13 @@ package microv2_test
 import (
 	"context"
 	"crypto/rand"
+	"encoding/json"
 	"errors"
+	"fmt"
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -35,10 +38,11 @@ func TestOrderWithdrawsBeforeBothProtocolsDrain(t *testing.T) {
 	defer finishCalls()
 	metrics := prometheus.NewServiceRPCMetrics()
 	diagnostics := availableDiagnosticAddress(t)
+	httpAddress := availableDiagnosticAddress(t)
 	diagnosticClient := newDiagnosticClient(t)
 	running := runOrderReplica(t, registry, name, implementation, kronos.Observability(kronos.ObservabilityConfig{
 		DiagnosticsAddress: diagnostics, Metrics: prometheus.NewServiceRPCMetrics(), Logger: logger,
-	}), kronos.Metrics(metrics))
+	}), kronos.Metrics(metrics), kronos.HTTP(httpAddress))
 	waitForInstances(t, registry.Registry, name, kronos.ProtocolGRPC, 1)
 	initial := diagnosticGET(t, diagnosticClient, diagnostics, "/metrics", http.StatusOK)
 	for _, protocol := range orderProtocols {
@@ -57,8 +61,18 @@ func TestOrderWithdrawsBeforeBothProtocolsDrain(t *testing.T) {
 		serverContext := awaitOrderSignal(t, implementation.entered)
 		calls = append(calls, pendingOrder{orders: orders, result: result, serverContext: serverContext, address: address})
 	}
+	httpResult := make(chan error, 1)
+	go func() {
+		reply, err := drainOrderHTTP(callContext, diagnosticClient, httpAddress)
+		if err == nil && (reply.code != http.StatusOK || reply.OrderID != "http-drain" || reply.Status != "after-drain") {
+			err = fmt.Errorf("unexpected HTTP reply %+v", reply)
+		}
+		httpResult <- err
+	}()
+	httpContext := awaitOrderSignal(t, implementation.entered)
 	diagnosticGET(t, diagnosticClient, diagnostics, "/readyz", http.StatusOK)
 	sample := diagnosticGET(t, diagnosticClient, diagnostics, "/metrics", http.StatusOK)
+	assertOrderInFlightMetric(t, sample, "http", "server", 1)
 	for _, protocol := range orderProtocols {
 		for _, side := range []string{"client", "server"} {
 			assertOrderInFlightMetric(t, sample, protocol, side, 1)
@@ -77,8 +91,12 @@ func TestOrderWithdrawsBeforeBothProtocolsDrain(t *testing.T) {
 			t.Fatalf("listener %s during withdrawal = %v, want SERVICE_UNAVAILABLE", call.address, err)
 		}
 	}
-	if got := implementation.calls.Load(); got != 2 {
-		t.Fatalf("shared Order implementation admitted %d calls, want 2", got)
+	if reply, err := drainOrderHTTP(callContext, diagnosticClient, httpAddress); err != nil ||
+		reply.code != http.StatusServiceUnavailable || reply.Reason != "SERVICE_UNAVAILABLE" {
+		t.Fatalf("HTTP during withdrawal = %+v, %v", reply, err)
+	}
+	if got := implementation.calls.Load(); got != 3 {
+		t.Fatalf("shared Order implementation admitted %d calls, want 3", got)
 	}
 	finishWithdrawal()
 	for _, protocol := range orderProtocols {
@@ -94,7 +112,13 @@ func TestOrderWithdrawsBeforeBothProtocolsDrain(t *testing.T) {
 		default:
 		}
 	}
+	if err := httpContext.Err(); err != nil {
+		t.Fatalf("HTTP business call canceled before drain: %v", err)
+	}
 	finishCalls()
+	if err := awaitOrderSignal(t, httpResult); err != nil {
+		t.Errorf("HTTP in-flight result: %v", err)
+	}
 	for i, call := range calls {
 		result := awaitOrderSignal(t, call.result)
 		if result.err != nil || result.response.GetOrderId() != string(orderProtocols[i]) ||
@@ -109,8 +133,11 @@ func TestOrderWithdrawsBeforeBothProtocolsDrain(t *testing.T) {
 		assertOrderPortReleased(t, call.address)
 	}
 	assertOrderPortReleased(t, diagnostics)
+	assertOrderPortReleased(t, httpAddress)
 	scrape := httptest.NewRecorder()
 	metrics.ServeHTTP(scrape, httptest.NewRequest(http.MethodGet, "/metrics", nil))
+	assertOrderInFlightMetric(t, scrape.Body.String(), "http", "server", 0)
+	assertOrderOutcomeMetrics(t, scrape.Body.String(), "http", "server", 1, 1)
 	for _, protocol := range orderProtocols {
 		for _, side := range []string{"client", "server"} {
 			assertOrderInFlightMetric(t, scrape.Body.String(), protocol, side, 0)
@@ -118,6 +145,29 @@ func TestOrderWithdrawsBeforeBothProtocolsDrain(t *testing.T) {
 		}
 	}
 	assertDrainRPCLogs(t, logPath, name)
+}
+
+type orderHTTPDrainReply struct {
+	code    int
+	OrderID string `json:"orderId"`
+	Status  string
+	Reason  string
+}
+
+func drainOrderHTTP(ctx context.Context, client *http.Client, address string) (orderHTTPDrainReply, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, "http://"+address+"/v1/orders:get", strings.NewReader(`{"order_id":"http-drain"}`))
+	if err != nil {
+		return orderHTTPDrainReply{}, err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	response, err := client.Do(req)
+	if err != nil {
+		return orderHTTPDrainReply{}, err
+	}
+	defer response.Body.Close()
+	reply := orderHTTPDrainReply{code: response.StatusCode}
+	err = json.NewDecoder(response.Body).Decode(&reply)
+	return reply, err
 }
 
 func TestOrderShutdownBudgetCancelsBothProtocols(t *testing.T) {
@@ -194,6 +244,31 @@ func TestOrderCallerDeadlineAndCancellationReachBothProtocols(t *testing.T) {
 				}
 			})
 		}
+	}
+}
+
+func TestOrderHTTPCancellationReachesBusiness(t *testing.T) {
+	registry := openTestRegistry(t)
+	name := "orders.http-cancel." + rand.Text()
+	implementation := newWaitingOrder()
+	address := availableDiagnosticAddress(t)
+	runOrderReplica(t, registry, name, implementation, kronos.HTTP(address))
+	waitForInstances(t, registry, name, kronos.ProtocolGRPC, 1)
+	client := newDiagnosticClient(t)
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	result := make(chan error, 1)
+	go func() {
+		_, err := drainOrderHTTP(ctx, client, address)
+		result <- err
+	}()
+	awaitOrderSignal(t, implementation.entered)
+	cancel()
+	if err := awaitOrderSignal(t, result); !errors.Is(err, context.Canceled) {
+		t.Errorf("HTTP client error = %v, want Canceled", err)
+	}
+	if err := awaitOrderSignal(t, implementation.finished); !errors.Is(err, context.Canceled) {
+		t.Errorf("business handler error = %v, want Canceled", err)
 	}
 }
 

@@ -4,9 +4,21 @@ import (
 	"context"
 	"log/slog"
 	"net/http"
+	"strings"
 	"testing"
 	"time"
 )
+
+func TestHTTPOnlyListenerDoesNotRequireRPC(t *testing.T) {
+	options := []Option{Name("orders"), HTTP("127.0.0.1:0")}
+	if _, err := New(options...); err != nil {
+		t.Fatalf("build HTTP-only app: %v", err)
+	}
+	registry := lookupRegistry(func(context.Context, string, string) ([]string, error) { return nil, nil })
+	if _, err := New(append(options, Registry(registry))...); err == nil || !strings.Contains(err.Error(), "registry requires an RPC listener") {
+		t.Fatalf("build HTTP-only app with RPC registry: %v", err)
+	}
+}
 
 func TestDiagnosticsFollowsFinalObservabilityOptions(t *testing.T) {
 	const address, alternateAddress = "127.0.0.1:8080", "127.0.0.1:8081"

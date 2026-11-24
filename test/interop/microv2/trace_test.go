@@ -15,6 +15,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -29,15 +30,22 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
-func TestOrderCorrelatesSignalsAcrossBothProtocols(t *testing.T) {
+const (
+	tracedOrderID     = "订单-统一链路"
+	orderHTTPTraceID  = "0123456789abcdef0123456789abcdef"
+	orderHTTPParentID = "0123456789abcdef"
+)
+
+func TestOrderCorrelatesSignalsAcrossTransports(t *testing.T) {
 	clientLogger, clientLogPath := newRPCLogCapture(t)
 	missingLogger, missingLogPath := newRPCLogCapture(t)
 	registry := openTestRegistry(t)
 	traceEndpoint, captured := orderTraceCollector(t)
 	diagnostics := availableDiagnosticAddress(t)
+	httpAddress := availableDiagnosticAddress(t)
 	serviceName := "orders.trace." + rand.Text()
 	process := startOrderProcess(t, os.Getenv("KRONOS_ETCD_TEST_ADDRESS"), serviceName,
-		"KRONOS_ORDER_DIAGNOSTICS="+diagnostics, "KRONOS_ORDER_TRACE_ENDPOINT="+traceEndpoint)
+		"KRONOS_ORDER_DIAGNOSTICS="+diagnostics, "KRONOS_ORDER_TRACE_ENDPOINT="+traceEndpoint, "KRONOS_ORDER_HTTP="+httpAddress)
 	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
 	defer cancel()
 	const requestID = "orders-trace-request"
@@ -65,8 +73,8 @@ func TestOrderCorrelatesSignalsAcrossBothProtocols(t *testing.T) {
 	observability := kronos.ObservabilityConfig{Tracer: tracer, Metrics: clientMetrics, Logger: clientLogger}
 	for _, protocol := range orderProtocols {
 		orders := newDiscoveredOrder(t, registry, serviceName, protocol, kronos.Observability(observability))
-		result, err := orders.GetOrder(ctx, &order.GetOrderRequest{OrderId: "trace-order"})
-		if err != nil || result.GetStatus() != "confirmed" || result.GetOrderId() != "trace-order" {
+		result, err := orders.GetOrder(ctx, &order.GetOrderRequest{OrderId: tracedOrderID})
+		if err != nil || result.GetStatus() != "confirmed" || result.GetOrderId() != tracedOrderID {
 			t.Fatalf("%s order = %v, %v", protocol, result, err)
 		}
 		_, err = orders.GetOrder(ctx, &order.GetOrderRequest{})
@@ -76,6 +84,7 @@ func TestOrderCorrelatesSignalsAcrossBothProtocols(t *testing.T) {
 			t.Fatalf("%s invalid order = %v", protocol, err)
 		}
 	}
+	assertOrderHTTP(t, ctx, httpAddress, requestID)
 	observability.Logger = missingLogger
 	missing := newDiscoveredOrder(t, registry, "orders.missing."+rand.Text(), kronos.ProtocolGRPC, kronos.Observability(observability))
 	_, err = missing.GetOrder(ctx, &order.GetOrderRequest{OrderId: "not-discoverable"})
@@ -88,6 +97,7 @@ func TestOrderCorrelatesSignalsAcrossBothProtocols(t *testing.T) {
 	for _, protocol := range orderProtocols {
 		assertOrderOutcomeMetrics(t, serverSample, protocol, "server", 1, 1)
 	}
+	assertOrderOutcomeMetrics(t, serverSample, "http", "server", 1, 1)
 	clientScrape := httptest.NewRecorder()
 	clientMetrics.ServeHTTP(clientScrape, httptest.NewRequest(http.MethodGet, "/metrics", nil))
 	assertOrderOutcomeMetrics(t, clientScrape.Body.String(), kronos.ProtocolGRPC, "client", 1, 2)
@@ -95,6 +105,7 @@ func TestOrderCorrelatesSignalsAcrossBothProtocols(t *testing.T) {
 
 	// The reference command waits for both application drain and exporter flush.
 	process.stop(t, 17*time.Second)
+	assertOrderPortReleased(t, httpAddress)
 	if err := flush(); err != nil {
 		t.Fatal(err)
 	}
@@ -118,6 +129,42 @@ func TestOrderCorrelatesSignalsAcrossBothProtocols(t *testing.T) {
 		}
 	}
 	captured.assertSignals(t, clientLogs, serverLogs)
+}
+
+func assertOrderHTTP(t *testing.T, ctx context.Context, address, requestID string) {
+	t.Helper()
+	client := newDiagnosticClient(t)
+	for _, scenario := range []struct {
+		body, contentType, field, expected string
+		status                             int
+	}{
+		{`{"orderId":"` + tracedOrderID + `"}`, "application/json; charset=utf-8", "orderId", tracedOrderID, http.StatusOK},
+		{`{}`, "application/json", "reason", "ERROR_REASON_INVALID_ORDER_ID", http.StatusBadRequest},
+		{`{"private"`, "application/json", "reason", "INVALID_REQUEST", http.StatusBadRequest},
+		{strings.Repeat(" ", (1<<20)+1), "application/json", "reason", "INVALID_REQUEST", http.StatusBadRequest},
+		{`{}`, "text/plain", "reason", "UNSUPPORTED_MEDIA_TYPE", http.StatusUnsupportedMediaType},
+	} {
+		req, err := http.NewRequestWithContext(ctx, http.MethodPost, "http://"+address+"/v1/orders:get?orderId=ignored", strings.NewReader(scenario.body))
+		if err != nil {
+			t.Fatal(err)
+		}
+		req.Header.Set("Content-Type", scenario.contentType)
+		req.Header.Set(request.IDHeader, requestID)
+		req.Header.Set("Traceparent", "00-"+orderHTTPTraceID+"-"+orderHTTPParentID+"-01")
+		response, err := client.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var fields map[string]any
+		err = json.NewDecoder(response.Body).Decode(&fields)
+		response.Body.Close()
+		if err != nil || response.StatusCode != scenario.status || fields[scenario.field] != scenario.expected {
+			t.Fatalf("Order HTTP status=%d body=%v error=%v", response.StatusCode, fields, err)
+		}
+		if scenario.status == http.StatusOK && fields["status"] != "confirmed" {
+			t.Fatalf("Order HTTP business status=%v", fields["status"])
+		}
+	}
 }
 
 type recordedOrderTraces struct {
@@ -219,8 +266,8 @@ func (captured *recordedOrderTraces) assertSignals(t *testing.T, clientLogs, ser
 		}
 		calls[key] = pair
 	}
-	if len(calls) != 5 || len(captured.spans) != 9 {
-		t.Fatalf("exported %d calls and %d spans, want five calls and nine spans", len(calls), len(captured.spans))
+	if len(calls) != 7 || len(captured.spans) != 11 {
+		t.Fatalf("exported %d calls and %d spans, want seven calls and eleven spans", len(calls), len(captured.spans))
 	}
 	lookup := calls[callKey{protocol: "grpc", status: "UNAVAILABLE"}]
 	lookupLog := clientLogs[hex.EncodeToString(lookup.client.GetSpanId())]
@@ -249,6 +296,18 @@ func (captured *recordedOrderTraces) assertSignals(t *testing.T, clientLogs, ser
 					t.Errorf("%+v server failure span is missing correlated log fields", key)
 				}
 			}
+		}
+	}
+	for _, status := range []string{"OK", "INVALID_ARGUMENT"} {
+		pair := calls[callKey{protocol: "http", status: status}]
+		entry := serverLogs[hex.EncodeToString(pair.server.GetSpanId())]
+		if pair.client != nil || pair.server == nil || hex.EncodeToString(pair.server.GetTraceId()) != orderHTTPTraceID ||
+			hex.EncodeToString(pair.server.GetParentSpanId()) != orderHTTPParentID {
+			t.Errorf("HTTP %s did not propagate the caller's span", status)
+		}
+		if status != "OK" && (entry.TraceID != orderHTTPTraceID || entry.Protocol != "http" ||
+			entry.Status != status || entry.Reason != "ERROR_REASON_INVALID_ORDER_ID") {
+			t.Errorf("HTTP failure span is missing correlated log fields: %+v", entry)
 		}
 	}
 }

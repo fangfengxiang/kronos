@@ -19,6 +19,7 @@ import (
 	kratosstatus "github.com/go-kratos/kratos/v3/transport/http/status"
 	"google.golang.org/grpc"
 	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/reflect/protoreflect"
 )
 
 type Service struct {
@@ -30,6 +31,7 @@ type Service struct {
 
 type Method struct {
 	Name       string
+	Descriptor protoreflect.MethodDescriptor
 	NewRequest func() proto.Message
 	Invoke     func(context.Context, proto.Message) (proto.Message, error)
 }
