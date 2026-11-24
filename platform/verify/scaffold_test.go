@@ -119,22 +119,54 @@ func TestPublishedProjectBuildsFreshService(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Setenv("GOWORK", "off")
-	project := t.TempDir()
+	parent := t.TempDir()
+	t.Chdir(parent)
 	name := "warehouse" + strings.ToLower(rand.Text()[:8])
+	module := "example.com/" + name
 	ctx, cancel := context.WithTimeout(t.Context(), 3*time.Minute)
 	defer cancel()
-	if err := runCommand(ctx, project, "go", "mod", "init", "example.com/"+name); err != nil {
+	arguments := []string{"scaffold-project", module, revision}
+	if err := run(ctx, arguments); err != nil {
 		t.Fatal(err)
 	}
-	if err := runCommand(ctx, project, "go", "get",
-		kronosModule+"/platform/kronos@"+revision, kronosModule+"/infra/etcd@"+revision); err != nil {
+	project := filepath.Join(parent, name)
+	manifest, err := os.ReadFile(filepath.Join(project, "go.mod"))
+	if err != nil {
 		t.Fatal(err)
 	}
-	generateIndependentProject(t, ctx, project, name, []string{"go", "run", kronosModule + "/platform/protogen@" + revision})
-	if err := runCommand(ctx, project, "go", "mod", "tidy"); err != nil {
-		t.Fatal(err)
+	if !bytes.HasPrefix(manifest, []byte("module "+module+"\n")) ||
+		bytes.Contains(manifest, []byte("\nreplace ")) {
+		t.Fatalf("unexpected Go module manifest:\n%s", manifest)
 	}
 	buildAndCallIndependentProject(t, ctx, project, name)
+
+	source := filepath.Join(project, "service.go")
+	const editedSource = "// source edited by the application author\n"
+	if err := os.WriteFile(source, []byte(editedSource), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := run(ctx, arguments); err == nil || !strings.Contains(err.Error(), "already exists") {
+		t.Fatalf("scaffold existing project = %v", err)
+	}
+	if contents, err := os.ReadFile(source); err != nil || string(contents) != editedSource {
+		t.Fatalf("existing source changed: %q, %v", contents, err)
+	}
+}
+
+func TestScaffoldProjectDiscardsFailedInstallation(t *testing.T) {
+	if _, err := exec.LookPath("buf"); err != nil {
+		t.Skip("Buf is required to generate an independent service")
+	}
+	t.Setenv("GOPROXY", "off")
+	t.Setenv("GONOPROXY", "none")
+	parent := t.TempDir()
+	if err := scaffoldProject(t.Context(), parent, "example.com/warehouse", strings.Repeat("0", 40)); err == nil ||
+		!strings.Contains(err.Error(), "install Kronos dependencies") {
+		t.Fatalf("unavailable revision returned %v", err)
+	}
+	if entries, err := os.ReadDir(parent); err != nil || len(entries) != 0 {
+		t.Fatalf("failed install left entries %v, err %v", entries, err)
+	}
 }
 
 func generateIndependentProject(t *testing.T, ctx context.Context, project, name string, pluginCommand []string) {

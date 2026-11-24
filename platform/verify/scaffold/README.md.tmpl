@@ -1,18 +1,32 @@
 # {{.Service}}
 
+{{- $commands := printf "./examples/%s/cmd" .Package }}
+{{- if .Standalone }}
+{{- $commands = "./cmd" }}
+
+在项目根目录运行。先准备可访问的 etcd v3。
+{{- else }}
+
 在 Kronos 仓库根目录运行。先准备可访问的 etcd v3。
+{{- end }}
 
 ```sh
-go run ./examples/{{.Package}}/cmd/{{.Package}}
+go run {{$commands}}/{{.Package}}
 ```
 
 启动后使用类型化客户端。两个命令都输出 `hello`。
 
 ```sh
-go run ./examples/{{.Package}}/cmd/{{.Package}}-client
-go run ./examples/{{.Package}}/cmd/{{.Package}}-client -protocol micro-v2
+go run {{$commands}}/{{.Package}}-client
+go run {{$commands}}/{{.Package}}-client -protocol micro-v2
 ```
 
 可以设置 `KRONOS_ETCD_ENDPOINT`、`KRONOS_GRPC` 和 `KRONOS_MICRORPC` 配置服务端地址。客户端通过 `-etcd` 选择 etcd，发现名来自 Proto 服务全名。
 
+{{- if .Standalone }}
+
+先修改 `api/` 中的 Proto，再执行 `buf lint` 和 `buf generate`。提交协议、生成产物和 Go 模块清单。
+{{- else }}
+
 先修改 `api/` 中的 Proto，再运行 `go run ./platform/verify generate`。使用 `go run ./platform/verify proto` 核对生成产物，使用 `go run ./platform/verify breaking HEAD` 对照提交中的协议。
+{{- end }}

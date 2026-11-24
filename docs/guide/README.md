@@ -118,7 +118,24 @@ return app.Run(ctx)
 
 ### 仓库外开发一元服务
 
-在业务仓库保留自己的 `go.mod`。`kronos_revision` 设为已经通过发布态验收的 Kronos 提交。在业务模块目录安装运行时及所用注册中心。
+准备 Go 1.25、Buf 1.70 和可用的 etcd v3。从空目录运行以下命令，`kronos_revision` 使用已经通过发布态验收的 40 位提交号。命令在 `warehouse/` 生成独立模块，目录名取自业务 Go 模块路径的最后一段。
+
+```sh
+go run "github.com/fangfengxiang/kronos/platform/verify@$kronos_revision" \
+  scaffold-project example.com/warehouse "$kronos_revision"
+cd warehouse
+go build ./cmd/...
+go run ./cmd/warehouse
+```
+
+从另一个终端进入 `warehouse/`，执行下列调用。两个命令均返回 `入库确认`。在服务端终端按 Ctrl+C，应用会摘流并关闭监听。
+
+```sh
+go run ./cmd/warehouse-client -value 入库确认
+go run ./cmd/warehouse-client -protocol micro-v2 -value 入库确认
+```
+
+修改 `api/` 中的业务 Proto 后运行 `buf lint`、`buf generate`，按生成接口实现业务并运行 `go test ./...`。发布时构建并部署服务端命令，将 `KRONOS_ETCD_ENDPOINT`、`KRONOS_GRPC` 和 `KRONOS_MICRORPC` 设为部署环境的地址。现有工程可在业务模块目录手工安装运行时和所用注册中心。
 
 ```sh
 go get "github.com/fangfengxiang/kronos/platform/kronos@$kronos_revision" \

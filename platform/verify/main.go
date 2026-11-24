@@ -1,4 +1,4 @@
-// Command verify runs the Kronos repository checks from its root directory.
+// Command verify runs Kronos repository checks and scaffolds services.
 package main
 
 import (
@@ -21,13 +21,16 @@ func main() {
 }
 
 func run(ctx context.Context, arguments []string) error {
-	const usage = "usage: go run ./platform/verify {test|deps|proto|generate|breaking <baseline>|scaffold <name>}"
+	const usage = "usage: verify {test|deps|proto|generate|breaking <baseline>|scaffold <name>|scaffold-project <module> <revision>}"
 	if len(arguments) == 0 {
 		return errors.New(usage)
 	}
 	repository, err := os.Getwd()
 	if err != nil {
 		return err
+	}
+	if len(arguments) == 3 && arguments[0] == "scaffold-project" {
+		return scaffoldProject(ctx, repository, arguments[1], arguments[2])
 	}
 	if len(arguments) == 2 {
 		switch arguments[0] {
@@ -37,7 +40,7 @@ func run(ctx context.Context, arguments []string) error {
 			return scaffoldService(ctx, repository, arguments[1])
 		}
 	}
-	if len(arguments) != 1 || arguments[0] == "breaking" || arguments[0] == "scaffold" {
+	if len(arguments) != 1 || arguments[0] == "breaking" || arguments[0] == "scaffold" || arguments[0] == "scaffold-project" {
 		return errors.New(usage)
 	}
 	switch arguments[0] {
