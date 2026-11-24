@@ -4,6 +4,8 @@
 
 Assistant 的业务实现用 `request.ID(ctx)` 读取调用关联标识。业务可以把原有 `context.Context` 直接传给下一次标准 RPC。Kronos 的 HTTP 与 gRPC 一元客户端自动发送该标识，主动发起的调用也可以用 `request.WithID` 指定。应用仍用 `framework/localization` 处理语言偏好和语言选择。
 
+Assistant 的 MicroRPC 服务复用入站元数据读取，实际收到的合法请求 ID 可用于诊断，缺少时生成本地 ID。MicroRPC 客户端发送显式语言偏好。
+
 - HTTP、gRPC 和 SSE 在进入服务方法时读取 `x-request-id`。一个有效值会被保留。允许的值由 1 至 128 字节的 ASCII 字母、数字、点、下划线和连字符组成。缺失、重复或格式非法时生成新的标识，调用继续执行。调用方通过 `WithID` 设置无效值时，当前出站上下文的标识清空。
 - 请求 ID 只用于诊断关联。框架通过标准上下文传递这一项，出站语言由客户端显式指定。W3C 追踪字段从当前 span 生成。请求 ID 在一次流式调用内保持不变。[请求链路追踪](request-tracing.md)
 - go-micro v2 兼容入口为每次业务调用创建本地标识。旧协议的出站请求沿用已有信封和头部约定。

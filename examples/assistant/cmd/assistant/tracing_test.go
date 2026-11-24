@@ -98,7 +98,7 @@ func (captured *capturedTraces) assertAssistantTraces(t *testing.T, processOutpu
 			linkedSpanIDs[span.GetName()] = hex.EncodeToString(span.GetSpanId())
 		}
 	}
-	if counts["Run"] != 12 || counts["StreamRun"] != 5 {
+	if counts["Run"] != 14 || counts["StreamRun"] != 5 {
 		t.Errorf("exported span counts = %v", counts)
 	}
 	for _, operation := range []string{"Run", "StreamRun"} {

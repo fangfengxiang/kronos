@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/url"
 
+	"github.com/fangfengxiang/kronos/framework/localization"
 	"github.com/fangfengxiang/kronos/framework/rpc"
 	"github.com/fangfengxiang/kronos/infra/microv2"
 	kratoserrors "github.com/go-kratos/kratos/v3/errors"
@@ -40,7 +41,7 @@ func Dial(ctx context.Context, protocol rpc.Protocol, address string) (Client, e
 		return Client{
 			Close: connection.Close,
 			Invoke: func(ctx context.Context, op Operation, request, response proto.Message) (bool, error) {
-				ctx = withGRPCTrace(ctx, op)
+				ctx = withGRPCMetadata(ctx, op)
 				err := connection.Invoke(ctx, op.GRPCMethod, request, response)
 				if err == nil {
 					return false, nil
@@ -59,19 +60,25 @@ func Dial(ctx context.Context, protocol rpc.Protocol, address string) (Client, e
 	}
 }
 
-func withGRPCTrace(ctx context.Context, op Operation) context.Context {
-	if op.TraceParent == "" {
+func withGRPCMetadata(ctx context.Context, op Operation) context.Context {
+	preferences := localization.AcceptLanguage(ctx)
+	if op.TraceParent == "" && len(preferences) == 0 {
 		return ctx
 	}
 	outgoing, _ := metadata.FromOutgoingContext(ctx)
 	if outgoing == nil {
 		outgoing = make(metadata.MD)
 	}
-	outgoing.Set("traceparent", op.TraceParent)
-	if op.TraceState == "" {
-		outgoing.Delete("tracestate")
-	} else {
-		outgoing.Set("tracestate", op.TraceState)
+	if len(preferences) != 0 {
+		outgoing.Set(localization.AcceptLanguageHeader, preferences...)
+	}
+	if op.TraceParent != "" {
+		outgoing.Set("traceparent", op.TraceParent)
+		if op.TraceState == "" {
+			outgoing.Delete("tracestate")
+		} else {
+			outgoing.Set("tracestate", op.TraceState)
+		}
 	}
 	return metadata.NewOutgoingContext(ctx, outgoing)
 }
@@ -91,7 +98,9 @@ func dialMicro(address string) (Client, error) {
 			if err != nil {
 				return false, err
 			}
-			decoded, err := connection.CallWithTraceContext(ctx, op.MicroName, op.MicroMethod, payload, op.TraceParent, op.TraceState)
+			decoded, err := connection.CallWithMetadata(ctx, op.MicroName, op.MicroMethod, payload, microv2.RequestMetadata{
+				TraceParent: op.TraceParent, TraceState: op.TraceState, AcceptLanguage: localization.AcceptLanguage(ctx),
+			})
 			if err == nil {
 				return false, proto.Unmarshal(decoded, response)
 			}

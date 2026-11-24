@@ -116,7 +116,7 @@ return app.Run(ctx)
 
 ```sh
 go work init . "$kronos_source/platform/protogen" "$kronos_source/platform/kronos" \
-  "$kronos_source/framework/app" "$kronos_source/framework/rpc" \
+  "$kronos_source/framework/app" "$kronos_source/framework/localization" "$kronos_source/framework/rpc" \
   "$kronos_source/infra/etcd" "$kronos_source/infra/microv2"
 ```
 
@@ -146,13 +146,13 @@ legacyClient, err := assistant.NewRPCClient(ctx, "127.0.0.1:9091", time.Second,
 
 ### 关联请求
 
-服务方法通过 `request.ID(ctx)` 读取请求标识。将同一个上下文传给 Kronos 的 HTTP 或 gRPC 客户端可继续传播该标识，调用方可用 `request.WithID` 设置自己的标识。go-micro v2 服务方法会收到本次调用的本地标识。[可执行的 Go 示例](../../framework/request/example_test.go) · [请求元数据契约](../design/request-metadata.md)
+服务方法通过 `request.ID(ctx)` 读取请求标识。将同一个上下文传给 Assistant 的 HTTP 或 gRPC 客户端可继续传播该标识，调用方可用 `request.WithID` 设置自己的标识。Assistant 的 MicroRPC 入口也校验实际收到的标识，缺少合法标识时为本次调用生成一个。[可执行的 Go 示例](../../framework/request/example_test.go) · [请求元数据契约](../design/request-metadata.md)
 
 参考服务的绑定将业务 panic 转换为现有的服务错误，并记录请求标识、类型和栈。自定义绑定可用 `rpc.RecoverUnary` 和 `rpc.RecoverStream` 包装业务处理函数，再沿本服务的错误映射返回。[恢复设计与实测](../design/rpc-handler-recovery.md) · [可执行的 Go 示例](../../framework/rpc/recovery_test.go)
 
 ### 选择错误文案语言
 
-HTTP 和 SSE 使用 `Accept-Language`，标准 gRPC 使用 `accept-language` 元数据。Kronos 的 HTTP 和标准 gRPC 一元客户端通过 `framework/localization` 为单次调用传入偏好。
+HTTP、SSE 和 MicroRPC 使用 `Accept-Language`，标准 gRPC 使用 `accept-language` 元数据。Kronos 生成的一元客户端与 Assistant 客户端通过 `framework/localization` 为单次调用传入偏好。服务通过 `localization.Negotiate(ctx, matcher)` 读取入站偏好。调用下游时可显式设置出站偏好。
 
 ```go
 callCtx := localization.WithAcceptLanguage(ctx, "zh-CN, en;q=0.5")

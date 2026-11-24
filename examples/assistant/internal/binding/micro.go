@@ -8,7 +8,7 @@ import (
 	"time"
 
 	wire "github.com/fangfengxiang/kronos/examples/assistant/internal/wire/kronos/assistant/v1"
-	"github.com/fangfengxiang/kronos/framework/request"
+	"github.com/fangfengxiang/kronos/framework/localization"
 	"github.com/fangfengxiang/kronos/framework/rpc"
 	"github.com/fangfengxiang/kronos/infra/microv2"
 	kratoserrors "github.com/go-kratos/kratos/v3/errors"
@@ -29,7 +29,7 @@ func NewMicroV2Server(listener net.Listener, run runHandler) rpc.Server {
 			if err := proto.Unmarshal(payload, &input); err != nil {
 				return nil, &microv2.Error{Code: http.StatusBadRequest, Reason: invalidRequestReason, Message: invalidRequestMessage}
 			}
-			response, err := run(request.WithIncomingID(ctx), &input)
+			response, err := run(withIncomingRequest(ctx), &input)
 			if err != nil {
 				return nil, toMicroV2Error(err)
 			}
@@ -52,7 +52,8 @@ func NewMicroV2Client(ctx context.Context, endpoint string, defaultTimeout time.
 		if err != nil {
 			return nil, err
 		}
-		decoded, err := nativeClient.Call(ctx, microV2Service, microV2Endpoint, payload)
+		decoded, err := nativeClient.CallWithMetadata(ctx, microV2Service, microV2Endpoint, payload,
+			microv2.RequestMetadata{AcceptLanguage: localization.AcceptLanguage(ctx)})
 		if err != nil {
 			var failure *microv2.Error
 			if errors.As(err, &failure) {

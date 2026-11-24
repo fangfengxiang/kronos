@@ -164,6 +164,7 @@ func assertAssistantListeners(t *testing.T, ctx context.Context, httpAddress, gr
 	}
 	defer legacyClient.Close()
 	assertEcho(t, ctx, "go-micro v2", legacyClient)
+	assertLocalizedPromptErrors(t, ctx, "go-micro v2", legacyClient)
 	assertStandardGRPCStream(t, ctx, grpcClient)
 	assertSSEListener(t, ctx, sseAddress, httpAddress)
 	assertMicroListener(t, ctx, microAddress)

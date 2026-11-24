@@ -13,7 +13,7 @@ func assertAggregatedMetrics(t *testing.T, ctx context.Context, endpoint string)
 	output := scrapeMetrics(t, ctx, endpoint, http.StatusOK)
 	for _, sample := range []string{
 		`kronos_rpc_requests_total{operation="Run",outcome="success"} 4`,
-		`kronos_rpc_requests_total{operation="Run",outcome="error"} 7`,
+		`kronos_rpc_requests_total{operation="Run",outcome="error"} 9`,
 		`kronos_rpc_requests_total{operation="StreamRun",outcome="success"} 2`,
 		`kronos_rpc_requests_total{operation="StreamRun",outcome="error"} 2`,
 		`kronos_rpc_request_duration_seconds_count{operation="StreamRun",outcome="success"} 2`,

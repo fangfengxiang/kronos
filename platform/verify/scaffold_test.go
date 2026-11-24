@@ -99,7 +99,7 @@ func TestIndependentProjectBuildsFreshService(t *testing.T) {
 		t.Fatal(err)
 	}
 	workspace := []string{"work", "init", "."}
-	for _, path := range []string{"platform/protogen", "platform/kronos", "framework/app", "framework/rpc", "infra/etcd", "infra/microv2"} {
+	for _, path := range []string{"platform/protogen", "platform/kronos", "framework/app", "framework/localization", "framework/rpc", "infra/etcd", "infra/microv2"} {
 		workspace = append(workspace, filepath.Join(repository, path))
 	}
 	if err := runCommand(ctx, project, "go", workspace...); err != nil {

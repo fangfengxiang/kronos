@@ -31,7 +31,7 @@
 | `core/runtime` A | [后台文档任务](../../examples/runtimejob/main.go) | [观察 panic 终态](../../core/runtime/example_test.go) | 通过 Go 启动任务并观察终态。任务持有自己的取消和等待。覆盖 panic、Goexit 和观察回调隔离。 |
 | `core/timezone` A | [计算日报日期](../../examples/reportdate/main.go) | [按 IANA 时区换算日期](../../core/timezone/timezone_test.go#L76) | 按 IANA 标识加载时区，由调用方选择业务日期语义。覆盖无效时区、夏令时及跨日。 |
 | `framework/app` A | [Assistant 监听与应用生命周期](../../examples/assistant/cmd/assistant/main.go#L123-L182) | [监听就绪与关停](../../framework/app/example_test.go) | 平台和高级调用方提供绑定，App 持有监听。绑定失败回滚，退出在同一预算内释放已发布状态与在途流。 |
-| `framework/localization` B | [Assistant 协商及传播请求语言](../../examples/assistant/internal/binding/request.go#L21-L22) | [按入站偏好协商](../../framework/localization/example_test.go) | 服务提供语言匹配器，框架保留入站与出站偏好。Assistant 已在绑定转换，统一一元入口的跨协议传播仍需核对。 |
+| `framework/localization` B | [Assistant 请求绑定](../../examples/assistant/internal/binding/request.go) · [Order 双协议调用](../../test/interop/microv2/localization_test.go) | [按入站偏好协商](../../framework/localization/example_test.go) | 服务提供语言匹配器，框架保留入站与出站偏好。之前统一一元入口缺少偏好映射，现由绑定自动传播显式出站偏好。已有 Assistant 入口使用相同权重和回退逻辑。 |
 | `framework/log` A | [Assistant 创建 JSON 日志](../../examples/assistant/cmd/assistant/main.go#L28-L29) | [JSON 日志与请求 ID](../../framework/log/example_test.go#L12) | 用 NewJSON 接收输出流与级别，入口持有流。请求上下文附加结构化字段。 |
 | `framework/request` A | [Assistant 接收请求 ID](../../examples/assistant/internal/binding/request.go#L16-L22) | [上下文请求 ID](../../framework/request/example_test.go#L10) | 传输入口接收并验证请求 ID，下游从上下文读取。无效值替换由入口完成。 |
 | `framework/rpc` B | [Assistant 选择 gRPC 或旧协议](../../examples/assistant/assistant.go#L96-L110) | [协议选项](../../framework/rpc/example_test.go#L9) · [一元恢复](../../framework/rpc/recovery_test.go#L85) | 应用持有客户端并关闭，调用方提供上下文。新一元业务可用生成客户端，已有多传输调用保留底层入口。 |
