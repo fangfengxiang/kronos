@@ -29,6 +29,8 @@ func requireRegistryProtocol(registry RegistryProvider, protocol WireProtocol) e
 
 // RPCMetrics observes one completed unary call at a client or server boundary.
 // BeginRPC may return nil for a method the observer does not record.
+// An observer can implement RegisterRPCOperations(...string) error to receive
+// the application's bound Protobuf method paths before the listeners start.
 type RPCMetrics interface {
 	BeginRPC(operation, protocol, side string) func(failed bool, duration time.Duration)
 }

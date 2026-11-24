@@ -33,13 +33,15 @@ func TestOrderWithdrawsBeforeBothProtocolsDrain(t *testing.T) {
 	implementation := newWaitingOrder()
 	finishCalls := sync.OnceFunc(func() { close(implementation.release) })
 	defer finishCalls()
-	metrics, err := prometheus.NewRPCMetrics(orderOperation)
-	if err != nil {
-		t.Fatal(err)
-	}
+	metrics := prometheus.NewServiceRPCMetrics()
 	diagnostics := availableDiagnosticAddress(t)
 	diagnosticClient := newDiagnosticClient(t)
 	running := runOrderReplica(t, registry, name, implementation, kronos.Metrics(metrics), kronos.Diagnostics(diagnostics, metrics))
+	waitForInstances(t, registry.Registry, name, kronos.ProtocolGRPC, 1)
+	initial := diagnosticGET(t, diagnosticClient, diagnostics, "/metrics", http.StatusOK)
+	for _, protocol := range orderProtocols {
+		assertOrderInFlightMetric(t, initial, protocol, "server", 0)
+	}
 	callContext, cancelCalls := context.WithTimeout(t.Context(), 8*time.Second)
 	defer cancelCalls()
 

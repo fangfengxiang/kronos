@@ -27,6 +27,10 @@ type Service struct {
 	methods    []UnaryMethod
 }
 
+func rpcMethodPath(service, method string) string {
+	return "/" + service + "/" + method
+}
+
 // UnaryMethod holds a typed handler and its Protobuf message types.
 type UnaryMethod struct {
 	name   protoreflect.Name

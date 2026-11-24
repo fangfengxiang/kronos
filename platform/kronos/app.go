@@ -92,6 +92,17 @@ func (application *App) Run(ctx context.Context) error {
 	if len(services) == 0 {
 		return errors.New("Kronos requires at least one registered service")
 	}
+	if registrar, ok := application.config.metrics.(interface{ RegisterRPCOperations(...string) error }); ok {
+		var operations []string
+		for _, service := range services {
+			for _, method := range service.Methods {
+				operations = append(operations, rpcMethodPath(service.Name, method.Name))
+			}
+		}
+		if err := registrar.RegisterRPCOperations(operations...); err != nil {
+			return fmt.Errorf("register metrics for bound RPC methods: %w", err)
+		}
+	}
 
 	var engine *app.App
 	isReady := func() bool { return engine.Ready() }
@@ -166,7 +177,7 @@ func (application *App) observeServices(services []transport.Service, protocol r
 	for serviceIndex, service := range observed {
 		service.Methods = slices.Clone(service.Methods)
 		for methodIndex, method := range service.Methods {
-			observation := rpcObservation{service: application.config.name, protocol: protocol, operation: "/" + service.Name + "/" + method.Name}
+			observation := rpcObservation{service: application.config.name, protocol: protocol, operation: rpcMethodPath(service.Name, method.Name)}
 			service.Methods[methodIndex].Invoke = application.observe(observation, ready, method.Invoke)
 		}
 		observed[serviceIndex] = service

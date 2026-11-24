@@ -116,7 +116,7 @@ func (client *Client) Invoke(ctx context.Context, method protoreflect.MethodDesc
 		serviceName = string(service.FullName())
 	}
 	operation := transport.Operation{
-		GRPCMethod:  "/" + string(service.FullName()) + "/" + string(method.Name()),
+		GRPCMethod:  rpcMethodPath(string(service.FullName()), string(method.Name())),
 		MicroName:   serviceName,
 		MicroMethod: string(service.Name()) + "." + string(method.Name()),
 	}

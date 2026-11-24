@@ -32,10 +32,7 @@ func main() {
 func runCommand(ctx context.Context) (runError error) {
 	var options []kronos.Option
 	if address := os.Getenv("KRONOS_ORDER_DIAGNOSTICS"); address != "" {
-		metrics, err := prometheus.NewRPCMetrics("/" + order.OrderServiceName + "/GetOrder")
-		if err != nil {
-			return err
-		}
+		metrics := prometheus.NewServiceRPCMetrics()
 		options = append(options, kronos.Metrics(metrics), kronos.Diagnostics(address, metrics))
 	}
 	if endpoint := os.Getenv("KRONOS_ORDER_TRACE_ENDPOINT"); endpoint != "" {

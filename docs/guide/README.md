@@ -56,7 +56,7 @@ GOWORK=off go run ./examples/order/cmd/order-client -protocol micro-v2 -id 订�
 
 两个命令均返回 `订单-01 confirmed`。使用自定义服务名时在客户端带上 `-service`。修改 Order 的 Proto 后执行 `go run ./platform/verify generate` 更新公开契约。[Order Proto](../../examples/order/api/kronos/order/v1/order.proto) · [治理验收](../design/service-governance.md)
 
-在 Order 进程设置 `KRONOS_ORDER_DIAGNOSTICS=127.0.0.1:9190` 可启用 `/livez`、`/readyz` 和 Prometheus `/metrics`。诊断端口单独绑定。观察可发现状态时按对应协议查询 etcd，再执行 Order 调用确认业务结果。[Order 运行观测](../design/order-diagnostics.md)
+在 Order 进程设置 `KRONOS_ORDER_DIAGNOSTICS=127.0.0.1:9190` 可启用 `/livez`、`/readyz` 和 Prometheus `/metrics`。诊断端口单独绑定。应用从已经注册的 Proto 绑定取得方法路径，添加方法后重新生成并注册便会纳入指标。观察可发现状态时按对应协议查询 etcd，再执行 Order 调用确认业务结果。[Order 运行观测](../design/order-diagnostics.md)
 
 设置 `KRONOS_ORDER_TRACE_ENDPOINT=http://127.0.0.1:4318/v1/traces` 将 Trace 发到本机 OTLP HTTP 接收端。应用开启 JSON 日志，在失败日志中按 `trace_id` 和 `span_id` 查找对应 span。Go 调用方可把自己创建的 `oteltrace.Provider` 通过 `kronos.Tracing` 交给客户端，并在关闭客户端后释放 provider。[跨协议 Trace](../design/order-diagnostics.md#trace-与调用定位)
 
