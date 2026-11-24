@@ -16,8 +16,8 @@ import (
 )
 
 const (
-	unaryServerTimeout = 30 * time.Second
-	sseWriteTimeout    = 15 * time.Second
+	UnaryTimeout    = 30 * time.Second
+	sseWriteTimeout = 15 * time.Second
 )
 
 type runHandler = func(context.Context, *wire.RunRequest) (*wire.RunResponse, error)
@@ -55,16 +55,24 @@ func (service service) StreamRun(request *wire.StreamRunRequest, stream wire.Ass
 		}
 		return stream.Send(event)
 	}
-	if err := service.stream(withIncomingRequest(ctx), request, func(delta string) error {
-		return send(&wire.StreamRunResponse{Event: &wire.StreamRunResponse_TextDelta{TextDelta: delta}})
-	}); err != nil {
+	if err := StreamEvents(withIncomingRequest(ctx), request, service.stream, send); err != nil {
 		if writeDeadline != nil {
 			// Kratos may write a terminal SSE error after this handler returns.
 			_ = writeDeadline.SetWriteDeadline(time.Now().Add(sseWriteTimeout))
 		}
 		return toWireError(err)
 	}
-	return toWireError(send(&wire.StreamRunResponse{Event: &wire.StreamRunResponse_Completed{Completed: &wire.RunCompleted{}}}))
+	return nil
+}
+
+// StreamEvents converts ordered model deltas to the Assistant protocol.
+func StreamEvents(ctx context.Context, request *wire.StreamRunRequest, stream streamHandler, send func(*wire.StreamRunResponse) error) error {
+	if err := stream(ctx, request, func(delta string) error {
+		return send(&wire.StreamRunResponse{Event: &wire.StreamRunResponse_TextDelta{TextDelta: delta}})
+	}); err != nil {
+		return err
+	}
+	return send(&wire.StreamRunResponse{Event: &wire.StreamRunResponse_Completed{Completed: &wire.RunCompleted{}}})
 }
 
 func (service service) Run(ctx context.Context, request *wire.RunRequest) (*wire.RunResponse, error) {
@@ -85,7 +93,7 @@ func (server server) Stop(ctx context.Context) error {
 }
 
 func NewHTTPServer(listener net.Listener, run runHandler, probes, metrics http.Handler) rpc.Server {
-	nativeServer := kratoshttp.NewServer(kratoshttp.Listener(listener), kratoshttp.Timeout(unaryServerTimeout),
+	nativeServer := kratoshttp.NewServer(kratoshttp.Listener(listener), kratoshttp.Timeout(UnaryTimeout),
 		kratoshttp.ErrorEncoder(encodeHTTPError), kratoshttp.Filter(onlyStreamRoute(false)))
 	wire.RegisterAssistantHTTPServer(nativeServer, service{run: rpc.RecoverUnary(run)})
 	if probes != nil {
@@ -99,7 +107,7 @@ func NewHTTPServer(listener net.Listener, run runHandler, probes, metrics http.H
 }
 
 func NewGRPCServer(listener net.Listener, run runHandler, stream streamHandler) rpc.Server {
-	nativeServer := kratosgrpc.NewServer(kratosgrpc.Listener(listener), kratosgrpc.Timeout(unaryServerTimeout))
+	nativeServer := kratosgrpc.NewServer(kratosgrpc.Listener(listener), kratosgrpc.Timeout(UnaryTimeout))
 	wire.RegisterAssistantServer(nativeServer, service{run: rpc.RecoverUnary(run), stream: rpc.RecoverStream(stream)})
 	return server{transport: nativeServer}
 }

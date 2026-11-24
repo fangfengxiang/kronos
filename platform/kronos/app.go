@@ -38,7 +38,7 @@ func New(options ...Option) (*App, error) {
 		return nil, errors.New("Kronos requires a service name")
 	}
 	if config.grpcAddress == "" && config.microRPCAddress == "" {
-		if config.httpAddress == "" {
+		if config.httpAddress == "" && config.sseAddress == "" {
 			return nil, errors.New("Kronos requires at least one listener")
 		}
 		if config.registry != nil {
@@ -131,6 +131,12 @@ func (application *App) Run(ctx context.Context) error {
 				return transport.UnaryHTTPServer(listener, application.observeServices(services, "http", isReady))
 			}})
 	}
+	if config.sseAddress != "" {
+		bindings = append(bindings, app.Binding{Name: "sse", Address: config.sseAddress,
+			Build: func(listener net.Listener) (app.Server, error) {
+				return transport.SSEServer(listener, application.observeServices(services, "sse", isReady))
+			}})
+	}
 	if config.diagnostics != "" {
 		bindings = append(bindings, app.Binding{Name: "diagnostics", Address: config.diagnostics,
 			Build: func(listener net.Listener) (app.Server, error) {
@@ -190,7 +196,19 @@ func (application *App) observeServices(services []transport.Service, protocol r
 		for methodIndex, method := range service.Methods {
 			observation := rpcObservation{service: application.config.name, protocol: protocol,
 				operation: rpcMethodPath(service.Name, method.Name), logger: application.config.logger}
-			service.Methods[methodIndex].Invoke = application.observe(observation, ready, method.Invoke)
+			if method.Stream != nil {
+				service.Methods[methodIndex].Stream = func(ctx context.Context, request proto.Message, send func(proto.Message) error) error {
+					ctx, completion, err := application.admit(ctx, observation, ready)
+					if err != nil {
+						return err
+					}
+					err = method.Stream(ctx, request, send)
+					application.finishCall(ctx, observation, completion, err)
+					return err
+				}
+			} else {
+				service.Methods[methodIndex].Invoke = application.observe(observation, ready, method.Invoke)
+			}
 		}
 		observed[serviceIndex] = service
 	}
@@ -199,17 +217,29 @@ func (application *App) observeServices(services []transport.Service, protocol r
 
 func (application *App) observe(observation rpcObservation, ready func() bool, invoke unaryCall) unaryCall {
 	return func(ctx context.Context, request proto.Message) (proto.Message, error) {
-		ctx, completion := observation.begin(ctx, application.config, "server")
-		if !ready() {
-			err := &rpc.Error{Code: rpc.Unavailable, Reason: rpc.ServiceUnavailableReason, Message: "service is unavailable"}
-			observation.finished(ctx, "rpc_finished", completion.finish(err), err, slog.Int64("in_flight", application.inFlight.Load()))
+		ctx, completion, err := application.admit(ctx, observation, ready)
+		if err != nil {
 			return nil, err
 		}
-		observation.started(ctx, application.inFlight.Add(1))
 		response, err := invoke(ctx, request)
-		observation.finished(ctx, "rpc_finished", completion.finish(err), err, slog.Int64("in_flight", application.inFlight.Add(-1)))
+		application.finishCall(ctx, observation, completion, err)
 		return response, err
 	}
+}
+
+func (application *App) admit(ctx context.Context, observation rpcObservation, ready func() bool) (context.Context, rpcCompletion, error) {
+	ctx, completion := observation.begin(ctx, application.config, "server")
+	if !ready() {
+		err := &rpc.Error{Code: rpc.Unavailable, Reason: rpc.ServiceUnavailableReason, Message: "service is unavailable"}
+		observation.finished(ctx, "rpc_finished", completion.finish(err), err, slog.Int64("in_flight", application.inFlight.Load()))
+		return ctx, completion, err
+	}
+	observation.started(ctx, application.inFlight.Add(1))
+	return ctx, completion, nil
+}
+
+func (application *App) finishCall(ctx context.Context, observation rpcObservation, completion rpcCompletion, err error) {
+	observation.finished(ctx, "rpc_finished", completion.finish(err), err, slog.Int64("in_flight", application.inFlight.Add(-1)))
 }
 
 func validHost(host string) bool {

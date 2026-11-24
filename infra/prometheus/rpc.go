@@ -8,7 +8,7 @@ import (
 	prom "github.com/prometheus/client_golang/prometheus"
 )
 
-// RPCMetrics records unified unary RPC traffic in its own Prometheus registry.
+// RPCMetrics records unified RPC traffic in its own Prometheus registry.
 type RPCMetrics struct {
 	mu            sync.RWMutex
 	series        map[rpcLabels]rpcSeries
@@ -82,6 +82,7 @@ func (metrics *RPCMetrics) addOperations(operations []string) {
 			}
 		}
 		metrics.addSeries(rpcLabels{operation: operation, protocol: "http", side: "server"})
+		metrics.addSeries(rpcLabels{operation: operation, protocol: "sse", side: "server"})
 	}
 }
 

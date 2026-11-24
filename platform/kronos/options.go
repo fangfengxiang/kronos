@@ -28,7 +28,7 @@ func requireRegistryProtocol(registry RegistryProvider, protocol WireProtocol) e
 	return nil
 }
 
-// RPCMetrics observes one completed unary call at a client or server boundary.
+// RPCMetrics observes one completed call at a client or server boundary.
 // BeginRPC may return nil for a method the observer does not record.
 // An observer can implement RegisterRPCOperations(...string) error to receive
 // the application's bound Protobuf method paths before the listeners start.
@@ -36,7 +36,7 @@ type RPCMetrics interface {
 	BeginRPC(operation, protocol, side string) func(failed bool, duration time.Duration)
 }
 
-// RPCTracer observes a unary call and propagates its W3C trace context.
+// RPCTracer observes a call and propagates its W3C trace context.
 // StartRPC preserves the caller's deadline and cancellation in its context.
 type RPCTracer interface {
 	StartRPC(ctx context.Context, operation, protocol, side string) (context.Context, func(status string))
@@ -64,6 +64,7 @@ type settings struct {
 	grpcAddress      string
 	microRPCAddress  string
 	httpAddress      string
+	sseAddress       string
 	diagnostics      string
 	scrape           http.Handler
 	scrapeRPCMetrics bool
@@ -111,7 +112,12 @@ func HTTP(address string) Option {
 	return func(config *settings) { config.httpAddress = address }
 }
 
-// Metrics borrows a unary RPC observer for the app or client. Nil disables it.
+// SSE configures a dedicated HTTP listener for annotated server streams.
+func SSE(address string) Option {
+	return func(config *settings) { config.sseAddress = address }
+}
+
+// Metrics borrows an RPC observer for the app or client. Nil disables it.
 func Metrics(metrics RPCMetrics) Option {
 	return func(config *settings) { config.metrics = metrics }
 }

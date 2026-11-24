@@ -34,6 +34,7 @@ type Method struct {
 	Descriptor protoreflect.MethodDescriptor
 	NewRequest func() proto.Message
 	Invoke     func(context.Context, proto.Message) (proto.Message, error)
+	Stream     func(context.Context, proto.Message, func(proto.Message) error) error
 }
 
 func GRPCServer(listener net.Listener, services []Service) (app.Server, error) {
@@ -48,11 +49,32 @@ func GRPCServer(listener net.Listener, services []Service) (app.Server, error) {
 			Methods: make([]grpc.MethodDesc, 0, len(service.Methods)),
 		}
 		for _, method := range service.Methods {
-			description.Methods = append(description.Methods, grpcMethod(service.Name, method))
+			if method.Stream != nil {
+				description.Streams = append(description.Streams, grpcServerStream(method))
+			} else {
+				description.Methods = append(description.Methods, grpcMethod(service.Name, method))
+			}
 		}
 		server.RegisterService(&description, struct{}{})
 	}
 	return server, nil
+}
+
+func grpcServerStream(method Method) grpc.StreamDesc {
+	return grpc.StreamDesc{StreamName: method.Name, ServerStreams: true, Handler: func(_ any, stream grpc.ServerStream) error {
+		request := method.NewRequest()
+		if err := stream.RecvMsg(request); err != nil {
+			return err
+		}
+		err := method.Stream(withIncomingRequest(stream.Context()), request, func(event proto.Message) error {
+			return stream.SendMsg(event)
+		})
+		if err == nil {
+			return nil
+		}
+		code, reason, message := failure(err)
+		return kratoserrors.New(code, reason, message)
+	}}
 }
 
 func grpcMethod(serviceName string, method Method) grpc.MethodDesc {
@@ -84,6 +106,9 @@ func MicroRPCServer(listener net.Listener, serviceName string, services []Servic
 	endpoints := make(map[string]microv2.Unary)
 	for _, service := range services {
 		for _, method := range service.Methods {
+			if method.Invoke == nil {
+				continue
+			}
 			name := service.ShortName + "." + method.Name
 			if _, exists := endpoints[name]; exists {
 				return nil, fmt.Errorf("go-micro v2 endpoint %q is already registered", name)
@@ -101,6 +126,9 @@ func MicroRPCServer(listener net.Listener, serviceName string, services []Servic
 				return nil, &microv2.Error{Code: code, Reason: reason, Message: message}
 			}
 		}
+	}
+	if len(endpoints) == 0 {
+		return nil, errors.New("Kronos MicroRPC requires at least one unary method")
 	}
 	server := newHTTPServer(listener)
 	server.Handle("/", microv2.NewHandler(serviceName, endpoints))

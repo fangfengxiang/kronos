@@ -22,6 +22,7 @@ var (
 	_ func(string) kronos.Option                                                 = kronos.GRPC
 	_ func(string) kronos.Option                                                 = kronos.MicroRPC
 	_ func(string) kronos.Option                                                 = kronos.HTTP
+	_ func(string) kronos.Option                                                 = kronos.SSE
 	_ func(kronos.WireProtocol) kronos.Option                                    = kronos.Protocol
 	_ func(time.Duration) kronos.Option                                          = kronos.CallTimeout
 	_ func(kronos.RPCMetrics) kronos.Option                                      = kronos.Metrics
@@ -31,6 +32,8 @@ var (
 	_ func(protoreflect.ServiceDescriptor, ...kronos.UnaryMethod) kronos.Service = kronos.Bind
 	_ func(protoreflect.Name, *emptypb.Empty, *emptypb.Empty,
 		func(context.Context, *emptypb.Empty) (*emptypb.Empty, error)) kronos.UnaryMethod = kronos.Unary[*emptypb.Empty, *emptypb.Empty]
+	_ func(protoreflect.Name, *emptypb.Empty, *emptypb.Empty,
+		func(context.Context, *emptypb.Empty, func(*emptypb.Empty) error) error) kronos.ServerStreamMethod = kronos.ServerStream[*emptypb.Empty, *emptypb.Empty]
 	_ = &kronos.Error{Code: kronos.InvalidArgument, Reason: "INVALID_REQUEST", Message: "invalid argument"}
 	_ interface {
 		Register(kronos.Service) error

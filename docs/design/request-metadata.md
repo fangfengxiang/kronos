@@ -17,8 +17,8 @@ Assistant 的 MicroRPC 服务复用入站元数据读取，收到合法请求 ID
 | gRPC 一元 | 统一 `kronos.GRPC` 或 Assistant 私有生成绑定。默认 RPC 协议。 | gRPC metadata。响应或稳定 gRPC 状态结束，调用上下文携带期限和取消。 |
 | MicroRPC 一元 | 统一 `kronos.MicroRPC` 或 Assistant 兼容绑定。通过选项显式启用。 | HTTP 精确头和既有 Timeout。响应及稳定错误沿旧 RPC 帧和头部返回。旧客户端省略可选字段时继续工作。 |
 | HTTP JSON 一元 | Order 的 `kronos.HTTP` 和 Assistant 私有绑定均使用显式 Proto 映射。 | HTTP 头传请求 ID、语言和 W3C 上下文。返回 JSON 或 HTTP 错误，采用请求上下文取消。 [统一 HTTP 契约](unified-http.md) |
-| SSE | Assistant 的 Proto 流和专用监听。 | HTTP 头，断开结束执行。业务完成事件后正常结束；首帧后错误用事件返回。 |
-| gRPC 服务端流 | Assistant 与 gRPC 一元共享服务身份及监听器。 | 流建立时发送 metadata，一条流保持同一个请求 ID。完成事件后需要正常 EOF，取消到达业务执行。 |
+| SSE | `kronos.SSE` 或 Assistant 专用监听。路由由 Proto 提供。 | HTTP 头，断开结束执行。业务完成事件后正常结束；首帧后错误用事件返回。 |
+| gRPC 服务端流 | `kronos.GRPC` 或 Assistant 原有 gRPC 绑定。一元和流共享服务身份与监听。 | 流建立时发送 metadata，一条流保持同一个请求 ID。完成事件后需要正常 EOF，取消到达业务执行。 |
 
 统一应用负责 Order 的三路一元监听及 RPC 发现，Assistant 复用同一生命周期模块并显式安装多传输绑定。两种装配的服务端按协议约定建立稳定错误，在共享业务入口设置日志和 Trace。Assistant 指标按方法聚合，Order 额外区分协议与角色。MCP 和 WebRTC 尚无已发布契约。[Assistant 协议](assistant-protocol.md) · [监听与兼容](additional-listeners.md) · [Order 观测](order-diagnostics.md)
 

@@ -17,6 +17,11 @@ const (
 	runFailedMessage      = "assistant run failed"
 )
 
+// PublicError applies Assistant's stable error contract at a service boundary.
+func PublicError(err error) error {
+	return fromWireError(toWireError(err))
+}
+
 func toWireError(err error) error {
 	switch {
 	case err == nil:
