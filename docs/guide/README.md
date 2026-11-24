@@ -87,6 +87,29 @@ go run ./examples/warehouse/cmd/warehouse-client -protocol micro-v2 -value 入�
 
 按业务修改新服务 `api/` 下的 Proto 后，运行 `go run ./platform/verify generate`。提交前用 `go run ./platform/verify proto` 检查产物，用 `go run ./platform/verify breaking HEAD` 核对协议兼容性。[文件契约与实测](../design/service-scaffold.md)
 
+### 使用 Consul 接入一元服务
+
+标准 gRPC 服务可以用 `consul.NewRPCRegistry` 接入 Consul。以下为已有 `ctx` 的应用装配函数体。服务通过健康检查后，调用方使用同一 Consul agent 和服务名创建生成客户端。需要同时提供 MicroRPC 时使用支持双协议的 etcd 适配。[实际 Consul 调用](../../test/integration/consul/order_test.go)
+
+```go
+registry, err := consul.NewRPCRegistry("http://127.0.0.1:8500")
+if err != nil {
+    return err
+}
+defer registry.Close()
+app, err := kronos.New(kronos.Name(order.OrderServiceName),
+    kronos.Registry(registry), kronos.GRPC("127.0.0.1:9090"))
+if err != nil {
+    return err
+}
+if err := app.Register(order.BindOrderService(order.NewService())); err != nil {
+    return err
+}
+return app.Run(ctx)
+```
+
+客户端先创建自己的 `consul.NewRPCRegistry`，再用 `kronos.NewClient(kronos.Registry(registry))` 和 `order.NewOrderServiceClient(client)` 发起调用。先关闭 RPC 客户端，再关闭注册中心实例。显式覆盖服务名时，客户端使用相同的 `kronos.Name`。
+
 ### 仓库外开发一元服务
 
 在业务仓库保留自己的 `go.mod`。使用固定提交的 Kronos 源码接入工作区。在业务模块目录执行以下命令，`kronos_source` 指向本机的 Kronos 源码目录。已有 `go.work` 时用 `go work use` 加入相同目录。

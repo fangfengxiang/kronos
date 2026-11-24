@@ -46,6 +46,16 @@ func New(options ...Option) (*App, error) {
 	if !validHost(config.advertiseHost) {
 		return nil, errors.New("Kronos advertise host must be an IP address or hostname")
 	}
+	if config.grpcAddress != "" {
+		if err := requireRegistryProtocol(config.registry, ProtocolGRPC); err != nil {
+			return nil, err
+		}
+	}
+	if config.microRPCAddress != "" {
+		if err := requireRegistryProtocol(config.registry, ProtocolMicroV2); err != nil {
+			return nil, err
+		}
+	}
 	return &App{config: config}, nil
 }
 

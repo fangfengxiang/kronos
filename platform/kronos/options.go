@@ -5,6 +5,7 @@ package kronos
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"time"
 
@@ -12,10 +13,18 @@ import (
 )
 
 // RegistryProvider publishes and resolves instances within the supplied
-// contexts. Its creator owns it.
+// contexts. Its creator owns it. A provider can declare supported transports
+// with SupportsProtocol(string) bool.
 type RegistryProvider interface {
 	Publish(ctx context.Context, name, grpcAddress, microRPCAddress string) (withdraw func(context.Context) error, err error)
 	Lookup(ctx context.Context, name, protocol string) ([]string, error)
+}
+
+func requireRegistryProtocol(registry RegistryProvider, protocol WireProtocol) error {
+	if capability, ok := registry.(interface{ SupportsProtocol(string) bool }); ok && !capability.SupportsProtocol(string(protocol)) {
+		return fmt.Errorf("%w: registry cannot use %s", ErrUnsupportedProtocol, protocol)
+	}
+	return nil
 }
 
 // RPCMetrics observes one completed unary call at a client or server boundary.

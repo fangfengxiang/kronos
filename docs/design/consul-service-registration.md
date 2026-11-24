@@ -12,6 +12,12 @@ Assistant 可以把订阅接到 gRPC 连接，按服务名调用当前健康实�
 
 ## 复用与取舍
 
+### Kronos 应用接线
+
+使用统一一元入口的业务可用 `consul.NewRPCRegistry(endpoint)` 构建适配器，并将同一实例传给服务端和客户端的 `kronos.Registry`。调用入口持有并关闭适配器。Consul 路径使用标准 gRPC，通过健康检查后进入发现结果。应用或客户端声明 MicroRPC 时在构造阶段返回 `kronos.ErrUnsupportedProtocol`。原有 `New`、`Watch` 和手工实例接线继续提供给 TextBackend 和 Assistant。
+
+适配器复用现有注册、passing 查询与注销。每次发布生成独有实例 ID，在监听就绪后开始注册，应用关停调用返回的注销函数。注册响应失败可能发生在 agent 已接收后，按同一 ID 做有界回滚并保留两项错误。使用官方 agent 启动 Order，验证生成客户端按名取得预期订单，停机后健康结果及 agent 记录均消失。[Consul 注册接口](https://developer.hashicorp.com/consul/api-docs/agent/service#register-service) · [健康查询](https://developer.hashicorp.com/consul/api-docs/health#list-nodes-for-service)
+
 参考服务在进程入口注入注册器，由官方 Consul API 注册实例、查询 passing 节点和订阅服务更新。本模块复用同一类上游接口，订阅由调用上下文结束。保留任意时刻健康实例集合，实例 ID 与进程生命周期对齐。具体版本和上游选择见 [ADR 0007](../adr/0007-consul-service-registration.md)。
 
 注册地址来自实际监听，支持配置 `:0` 时公布真实端口。通配地址的部署方通过 `-advertise-grpc` 提供可达地址。注销请求有一秒上限，传输仍使用应用剩余的关停预算。Consul health checks 在进程非正常退出时剔除不健康实例，持续异常实例由 Consul 的自动注销配置清理。[Consul 注册接口](https://developer.hashicorp.com/consul/api-docs/agent/service#register-service) · [Consul gRPC 健康检查](https://developer.hashicorp.com/consul/api-docs/agent/check)
@@ -28,3 +34,5 @@ Assistant 可以把订阅接到 gRPC 连接，按服务名调用当前健康实�
 - 使用官方 Consul 2.1.0 执行 `KRONOS_CONSUL_EXECUTABLE=/path/to/consul GOWORK=off go test -tags=consul_integration -count=3 -v ./test/integration/consul`，三轮通过。TextBackend 监听 `127.0.0.1:0`，两种查询都观察到实际分配的地址并可以调用。`SIGTERM` 后 agent 记录被删除，订阅交付空快照，取消订阅正常返回。[官方发行包](https://releases.hashicorp.com/consul/2.1.0/) · [真实 agent 测试](../../test/integration/consul/registration_test.go)
 - 在同一 Linux 环境运行 `GOWORK=off go test -count=5 -run '^TestRegistrationFailureWithdrawsInstanceAndClosesPort$' ./examples/textbackend/cmd/textbackend`。复核请求失败边界后加入同 ID 的注销回滚。模拟注册响应异常时，入口发出回滚注销并释放端口。[启动回滚测试](../../examples/textbackend/cmd/textbackend/registration_test.go)
 - macOS arm64 的全模块 Go 竞态测试、跨层依赖检查与 Linux Compose 回归通过。Consul SDK 适配和 TextBackend 命令通过 Windows amd64 交叉构建，真实 agent 与进程验收运行于 Linux。
+- Go 1.25.0、Ubuntu 24.04 Linux arm64 与官方 Consul 2.1.0 执行 `GOWORK=off go test -tags=consul_integration -count=1 -v ./test/integration/consul`。Order 经健康发现取得订单，关停后 passing 查询为空且 agent 注册记录消失。应用和客户端在构造时拒绝 Consul 的 MicroRPC 配置。同一套件的 TextBackend 注册及 Assistant 发现通过。Consul 包在 Linux 通过三轮，macOS arm64 的 Consul、Kronos 包均通过三轮竞态回归。回环模拟注册响应失败，确认使用同一实例 ID 注销。[实际 Order 接线](../../test/integration/consul/order_test.go) · [注册失败夹具](../../infra/consul/rpc_test.go)
+- Ubuntu 24.04 Linux amd64 与 etcd v3.6.16 复跑真实租约及 `GOWORK=off go test -tags=interop,etcd_interop -count=1 -v ./test/interop/microv2`，双协议、两版官方旧端、摘流和恢复用例通过。Linux 的 `go run ./platform/verify deps` 通过。[etcd 回归入口](go-verification.md#order-治理验收)

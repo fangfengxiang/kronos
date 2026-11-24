@@ -45,6 +45,9 @@ func NewClient(options ...Option) (*Client, error) {
 	if config.registry == nil {
 		return nil, errors.New("Kronos client requires a registry")
 	}
+	if err := requireRegistryProtocol(config.registry, config.protocol); err != nil {
+		return nil, err
+	}
 	if config.callTimeout <= 0 {
 		return nil, errors.New("Kronos call timeout must be positive")
 	}
