@@ -39,6 +39,21 @@ func (service *assistantService) Run(ctx context.Context, input *assistant.RunRe
 		panic(privateHandlerPanic)
 	case "request-id":
 		return &assistant.RunResponse{Text: request.ID(ctx)}, nil
+	case "remaining-budget":
+		deadline, present := ctx.Deadline()
+		if !present {
+			return nil, errors.New("missing server deadline")
+		}
+		return &assistant.RunResponse{Text: time.Until(deadline).String()}, nil
+	case "slow-response":
+		operation := time.NewTimer(1100 * time.Millisecond)
+		defer operation.Stop()
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case <-operation.C:
+			return &assistant.RunResponse{Text: "completed"}, nil
+		}
 	case "wait":
 		close(service.requestStarted)
 		<-ctx.Done()
@@ -107,6 +122,17 @@ func TestAssistantThroughKronosPublicAPI(t *testing.T) {
 			response, err := client.Run(ctx, &assistant.RunRequest{Prompt: "你好"})
 			if err != nil || response.GetText() != "你好" {
 				t.Fatalf("Run() = (%v, %v)", response, err)
+			}
+			slow, err := client.Run(ctx, &assistant.RunRequest{Prompt: "slow-response"})
+			if err != nil || slow.GetText() != "completed" {
+				t.Fatalf("slow Run() within the caller budget = (%v, %v)", slow, err)
+			}
+			longCall, stopLongCall := context.WithTimeout(t.Context(), time.Minute)
+			budget, err := client.Run(longCall, &assistant.RunRequest{Prompt: "remaining-budget"})
+			stopLongCall()
+			remaining, parseError := time.ParseDuration(budget.GetText())
+			if err != nil || parseError != nil || remaining < 25*time.Second || remaining > 30*time.Second {
+				t.Fatalf("one-minute request exposed server budget %q, error %v", budget.GetText(), err)
 			}
 			idRequest := &assistant.RunRequest{Prompt: "request-id"}
 			generated, err := client.Run(ctx, idRequest)

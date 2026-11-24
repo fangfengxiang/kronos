@@ -15,7 +15,10 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
-const sseWriteTimeout = 15 * time.Second
+const (
+	unaryServerTimeout = 30 * time.Second
+	sseWriteTimeout    = 15 * time.Second
+)
 
 type runHandler = func(context.Context, *wire.RunRequest) (*wire.RunResponse, error)
 type streamHandler = func(context.Context, *wire.StreamRunRequest, func(string) error) error
@@ -82,7 +85,8 @@ func (server server) Stop(ctx context.Context) error {
 }
 
 func NewHTTPServer(listener net.Listener, run runHandler, probes, metrics http.Handler) rpc.Server {
-	nativeServer := kratoshttp.NewServer(kratoshttp.Listener(listener), kratoshttp.ErrorEncoder(encodeHTTPError), kratoshttp.Filter(onlyStreamRoute(false)))
+	nativeServer := kratoshttp.NewServer(kratoshttp.Listener(listener), kratoshttp.Timeout(unaryServerTimeout),
+		kratoshttp.ErrorEncoder(encodeHTTPError), kratoshttp.Filter(onlyStreamRoute(false)))
 	wire.RegisterAssistantHTTPServer(nativeServer, service{run: rpc.RecoverUnary(run)})
 	if probes != nil {
 		nativeServer.Handle("/livez", probes)
@@ -95,7 +99,7 @@ func NewHTTPServer(listener net.Listener, run runHandler, probes, metrics http.H
 }
 
 func NewGRPCServer(listener net.Listener, run runHandler, stream streamHandler) rpc.Server {
-	nativeServer := kratosgrpc.NewServer(kratosgrpc.Listener(listener))
+	nativeServer := kratosgrpc.NewServer(kratosgrpc.Listener(listener), kratosgrpc.Timeout(unaryServerTimeout))
 	wire.RegisterAssistantServer(nativeServer, service{run: rpc.RecoverUnary(run), stream: rpc.RecoverStream(stream)})
 	return server{transport: nativeServer}
 }

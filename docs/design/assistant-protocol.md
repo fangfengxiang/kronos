@@ -11,6 +11,14 @@ HTTP JSON 客户端和 gRPC 客户端从同一份版本化 Protobuf 获取方法
 
 两种方法各自拥有请求消息，首版采用同一条校验规则。空字符串或仅含空白的提示词为无效请求。原始提示词交给应用用例。系统文案语言从传输入口协商。Agent 输出语言由请求意图与用例决定。
 
+### 一元请求的期限
+
+Assistant 可调用默认预算为 2 秒的文本后端。复测同一个 `Run`，调用者设 3 秒，HTTP 和 gRPC 的业务上下文只剩约 1 秒，MicroRPC 仍约 3 秒。前两路使用了 Kratos v3.0.0 的默认服务端期限。这会让耗时超过 1 秒的有效业务请求取决于所选传输。
+
+Assistant 的 HTTP 和 gRPC 一元监听显式指定 30 秒服务端上限，与这一应用已经用在 MicroRPC 上的上限一致。复用 Kratos 的超时选项。gRPC 继续接收调用者带的较短期限，MicroRPC 沿用 `Timeout` 头，HTTP 通过断开和取消通知服务端。超过预算沿现有稳定错误路径返回。SSE 和 gRPC 服务端流按各自的取消、写期限和应用关停机制执行。
+
+通过条件为真实 HTTP、gRPC 和 MicroRPC 在同一调用预算内完成一个耗时超过 1 秒的共享业务操作，仍传播提前取消。两种标准一元监听继续有服务端上限。此改动延长原来受 1 秒默认值限制的请求占用窗口。回退时可恢复该版本的 Kratos 默认设置。[Kratos HTTP 服务端期限](https://github.com/go-kratos/kratos/blob/v3.0.0/transport/http/server.go) · [Kratos gRPC 期限](https://github.com/go-kratos/kratos/blob/v3.0.0/transport/grpc/interceptor.go) · [gRPC Deadline](https://grpc.io/docs/guides/deadlines/)
+
 ## 流与错误
 
 - `StreamRunResponse.event` 使用 `oneof`。文本增量承载新增正文，客户端按顺序拼接。完成标记无需正文。成功流发送恰好一个完成标记，随后以 gRPC OK 结束。客户端观察到完成标记和正常 EOF 后确认成功。
@@ -37,6 +45,8 @@ HTTP JSON 客户端和 gRPC 客户端从同一份版本化 Protobuf 获取方法
 当前从仓库根目录运行 `go run ./platform/verify proto`，需要更新协议产物时运行 `go run ./platform/verify generate`。同一生成命令提供公开消息和服务接口以及私有传输绑定。[原生 Go 验收](go-verification.md) · [公开契约生成](protobuf-go-contract.md)
 
 ## 实测记录
+
+Go 1.25.0、Ubuntu 24.04 Linux arm64 的 `GOWORK=off go test -count=1 ./examples/assistant/...` 通过。共享业务回归在 HTTP、gRPC 与 MicroRPC 上分别完成 1.1 秒的请求，并核对一分钟客户端期限下服务端最多保留 30 秒。修复前 HTTP 与 gRPC 均在 1 秒处返回 `DeadlineExceeded`。两版官方 MicroRPC 互通通过，macOS arm64 的 Assistant 竞态回归通过。[三路业务回归](../../examples/assistant/assistant_test.go)
 
 Go 1.25.0、Buf 1.70.0、macOS arm64 环境完成以下检查。
 
