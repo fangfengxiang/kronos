@@ -72,6 +72,10 @@ func (client *Client) releaseConnections() error {
 	for peer := range activePeers {
 		closeError = errors.Join(closeError, peer.connection.Close())
 	}
+	if closeError == nil {
+		slog.Debug("RPC client closed", "event", "rpc_client_closed", "protocol", client.config.protocol,
+			"released_transports", len(activePeers))
+	}
 	return closeError
 }
 

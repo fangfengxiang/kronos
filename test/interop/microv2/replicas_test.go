@@ -22,6 +22,7 @@ func TestDiscoveredOrderRotatesAndBypassesAnUnavailableReplica(t *testing.T) {
 	registry := openTestRegistry(t)
 	for _, protocol := range []kronos.WireProtocol{kronos.ProtocolGRPC, kronos.ProtocolMicroV2} {
 		t.Run(string(protocol), func(t *testing.T) {
+			logPath := captureRPCLogs(t)
 			name := "orders.replicas." + rand.Text()
 			first := &orderReplica{label: "first"}
 			second := &orderReplica{label: "second"}
@@ -53,8 +54,25 @@ func TestDiscoveredOrderRotatesAndBypassesAnUnavailableReplica(t *testing.T) {
 			}
 			failedRun.stop()
 			waitForInstances(t, registry, name, protocol, 1)
-			if got := getOrderStatus(t, orders); got != secondResult {
-				t.Fatalf("call after withdrawal = %q, want %q", got, secondResult)
+			deadline := time.Now().Add(3 * time.Second)
+			for {
+				if got := getOrderStatus(t, orders); got != secondResult {
+					t.Fatalf("call after withdrawal = %q, want %q", got, secondResult)
+				}
+				initial, reduced, _ := observeClientPool(t, logPath, name, protocol)
+				if initial && reduced {
+					break
+				}
+				if time.Now().After(deadline) {
+					t.Fatalf("discovery snapshots: initial=%t, reduced=%t", initial, reduced)
+				}
+				time.Sleep(50 * time.Millisecond)
+			}
+			if err := client.Close(); err != nil {
+				t.Fatal(err)
+			}
+			if _, _, released := observeClientPool(t, logPath, name, protocol); released != 1 {
+				t.Fatalf("client reported %d released transports, want one", released)
 			}
 		})
 	}

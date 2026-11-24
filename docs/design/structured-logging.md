@@ -14,6 +14,8 @@ Assistant 的部署方从进程标准错误流收集逐行 JSON。命令入口�
 
 客户端的 `rpc_client_finished` 记录状态、耗时和传输尝试次数。注册中心查询在共享预算内失败时记录 `rpc_discovery_failed`，包含协议、服务名和查询耗时。沿用标准 `slog`，成功和接纳事件使用 DEBUG，失败使用 WARN。使用者可用标准日志级别启用详细记录。业务调用日志仅写入固定字段与公开错误原因。[Go slog](https://pkg.go.dev/log/slog@go1.25.0) · [治理故障契约](service-governance.md#就绪故障和恢复)
 
+按需刷新成功时用 DEBUG 记录 `rpc_discovery_snapshot`。`discovered_instances` 是快照中的去重地址数，`pooled_transports` 是当前可复用的传输对象数。`rpc_client_closed` 的 `released_transports` 是 `Close` 成功清理的对象数，范围为当前整个客户端。[连接与快照](discovered-rpc-client.md#实例失败及资源)
+
 ## 边界与取舍
 
 - 参考服务为下游调用日志保留原请求上下文，日志类库用结构化字段和关联标识。沿用上下文关联与结构化字段，日志实例由应用入口构造和注入，避免配置影响同进程的另一个实例。

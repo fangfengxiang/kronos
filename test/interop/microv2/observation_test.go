@@ -120,3 +120,40 @@ func assertDrainRPCLogs(t *testing.T, path, name string) {
 		t.Errorf("in-flight counts = started %v, completed %v, rejected %v", started, completed, rejected)
 	}
 }
+
+func observeClientPool(t *testing.T, path, service string, protocol kronos.WireProtocol) (initial, reduced bool, released int) {
+	t.Helper()
+	logs, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	end := bytes.LastIndexByte(logs, '\n') + 1
+	lines := bufio.NewScanner(bytes.NewReader(logs[:end]))
+	for lines.Scan() {
+		var record struct {
+			Event              string
+			Service            string
+			Protocol           kronos.WireProtocol
+			Discovered         int `json:"discovered_instances"`
+			Pooled             int `json:"pooled_transports"`
+			ReleasedTransports int `json:"released_transports"`
+		}
+		if err := json.Unmarshal(lines.Bytes(), &record); err != nil {
+			t.Fatalf("decode RPC log: %v", err)
+		}
+		if record.Protocol != protocol {
+			continue
+		}
+		switch {
+		case record.Event == "rpc_discovery_snapshot" && record.Service == service:
+			initial = initial || record.Discovered == 2 && record.Pooled == 0
+			reduced = reduced || record.Discovered == 1 && record.Pooled == 1
+		case record.Event == "rpc_client_closed":
+			released += record.ReleasedTransports
+		}
+	}
+	if err := lines.Err(); err != nil {
+		t.Fatal(err)
+	}
+	return initial, reduced, released
+}

@@ -63,6 +63,7 @@
 | T16 | 双协议 Trace 可关联到日志与指标，失败定位到真实阶段 | [Trace 与调用定位](order-diagnostics.md#trace-与调用定位) | [OTLP Trace](../../infra/oteltrace/provider.go) · [传输传播](../../platform/kronos/internal/transport/client.go) | [实际 OTLP、日志和指标](../../test/interop/microv2/trace_test.go) |
 | T17 | 保持现有 Proto 和 Go 核心调用契约的兼容 | [版本与迁移](../adr/0010-public-contract-compatibility.md) | [Buf 基线检查](../../platform/verify/compatibility.go) · [CI](../../.github/workflows/ci.yml) | [基线正反例](../../platform/verify/compatibility_test.go) · [外部 Go 消费者编译](../../platform/kronos/public_test.go) |
 | T18 | 新服务可从 Proto 生成、构建并经双协议调用 | [一元服务脚手架](service-scaffold.md) | [脚手架命令](../../platform/verify/scaffold.go) · [生成入口](../../platform/verify/protocol.go) | [全新服务经真实 etcd](../../platform/verify/scaffold_test.go) |
+| T19 | 实例摘除和客户端释放可从运行日志核对，剩余实例继续成功 | [实例与传输资源状态](discovered-rpc-client.md#实例失败及资源) | [快照计数](../../platform/kronos/discovery.go) · [客户端关闭](../../platform/kronos/client.go) | [真实 etcd 双实例变更](../../test/interop/microv2/replicas_test.go) |
 
 ## 实测记录
 

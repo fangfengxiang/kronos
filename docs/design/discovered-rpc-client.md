@@ -16,6 +16,8 @@ go-micro v2 通过纳秒级 `Timeout` 传递剩余预算。Kronos 兼容监听�
 
 查询合并沿用已有服务快照的锁和生命周期。原先的 `singleflight.DoChan` 为每个等待方保留通道直到查询结束。注册中心失联且短期限调用持续到达时，这些通道跟随请求量增长。服务快照持有一个完成通道，共享查询更新快照后关闭通道。等待方指向同一个值，取消后立即离开。保留有界查询与错误缓存。[singleflight 实现](https://github.com/golang/sync/blob/v0.21.0/singleflight/singleflight.go) · [Go 通道广播取消示例](https://go.dev/blog/pipelines#explicit-cancellation)
 
+运维启用 DEBUG 后，可以用 `rpc_discovery_snapshot` 对照已发现的地址数与该服务、该协议仍可复用的传输对象数。计数取自应用快照时的已有状态，等待最后一个调用的退役对象已退出可复用集合。客户端 `Close` 成功时，`rpc_client_closed` 记录本次释放的传输对象数。每个对象由底层持有实际连接，指标仍按业务调用统计。复用现有 `slog` 和传输池的所有权边界。[gRPC 连接复用](https://grpc.io/docs/guides/performance/) · [结构化日志](structured-logging.md#统一一元-rpc-的事件)
+
 ## 通过条件
 
 - 默认 gRPC 和显式 MicroRPC 都经 etcd 找到 Order。调用代码通过生成类型使用 Kronos。
@@ -23,6 +25,7 @@ go-micro v2 通过纳秒级 `Timeout` 传递剩余预算。Kronos 兼容监听�
 - 验证同一服务的轮询、实例消失、失败绕过、可重试边界、连接关闭及取消。首个发现方被取消时，其他有预算的调用仍可使用同一查询结果。
 - 同一服务有三个实例时，让排序后的前两个实例返回不可用。按两种协议检查尝试次数。未声明幂等的方法只进入第一个实例，声明只读的方法进入前两个实例。记录各实例的实际调用次数，并核对客户端返回稳定的不可用错误。
 - 阻塞一次查询，连续结束多个等待方，核对期间只发起一次查询、共享信号随后释放。地址消失时关闭空闲连接，仍占用的连接由最后一个在途调用释放。客户端重复关闭保持每条连接只关闭一次。
+- 在真实 etcd 的双实例用例中观察两种协议的地址快照。摘除一个实例后，快照显示一个实例和一个可复用传输，Order 继续返回预期结果。关闭客户端后核对释放计数。
 
 ## 实测
 
@@ -31,3 +34,4 @@ go-micro v2 通过纳秒级 `Timeout` 传递剩余预算。Kronos 兼容监听�
 - Linux 使用真实 etcd 运行 `GOWORK=off go test -tags=interop,etcd_interop -count=8 -run '^TestDiscoveredOrder' -v ./test/interop/microv2`。三个实例中前两个返回不可用时，gRPC 与 MicroRPC 的未标记方法实际进入首个实例一次，只读方法进入前两个实例各一次。两种调用均返回 `SERVICE_UNAVAILABLE`。[重试边界](../../test/interop/microv2/replicas_test.go)
 - macOS arm64 的 Order 竞态测试五轮通过，确认共享查询保留独立等待期限、关闭取消查询和未知协议错误。`go run ./platform/verify test` 与 `go run ./platform/verify deps` 通过，Linux 的 `go run ./platform/verify proto` 通过。[客户端边界测试](../../examples/order/client_test.go)
 - macOS arm64 运行 `GOWORK=off go -C platform/kronos test -race -count=10 ./...`，64 个短期限调用依次结束时仍只发起一次查询，查询结束后完成信号释放。验证未变地址复用连接，已移除地址的连接按使用数量关闭。`GOWORK=off go test -race -count=5 ./examples/order/...` 与真实 etcd Linux 互通套件同样通过。[发现状态与连接测试](../../platform/kronos/discovery_test.go)
+- Go 1.25.0、Ubuntu 24.04 Linux amd64 和真实 etcd v3.6.16 的完整互通套件通过。以 `-count=5 -run '^TestDiscoveredOrderRotatesAndBypassesAnUnavailableReplica$'` 单独复跑时，两种协议均从双实例快照转入单实例、单传输对象，剩余实例继续返回订单。关闭客户端记录释放一个传输对象。[多实例与资源日志](../../test/interop/microv2/replicas_test.go)

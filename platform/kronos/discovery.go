@@ -79,6 +79,8 @@ func (client *Client) refreshService(serviceName string, view *serviceView) {
 	addresses = slices.Clone(addresses)
 	slices.Sort(addresses)
 	var staleConnections []transport.Client
+	var instanceCount, pooledTransportCount int
+	snapshotApplied := false
 	client.mu.Lock()
 	if client.ctx.Err() == nil {
 		view.refreshAfter = time.Now().Add(discoveryPeriod)
@@ -96,6 +98,8 @@ func (client *Client) refreshService(serviceName string, view *serviceView) {
 					staleConnections = append(staleConnections, peer.connection)
 				}
 			}
+			snapshotApplied = true
+			instanceCount, pooledTransportCount = len(view.addresses), len(view.connections)
 		}
 	}
 	close(view.lookupDone)
@@ -103,6 +107,10 @@ func (client *Client) refreshService(serviceName string, view *serviceView) {
 	client.mu.Unlock()
 	for _, connection := range staleConnections {
 		closeIdle(connection)
+	}
+	if snapshotApplied {
+		slog.DebugContext(ctx, "RPC discovery snapshot applied", "event", "rpc_discovery_snapshot", "service", serviceName,
+			"protocol", client.config.protocol, "discovered_instances", instanceCount, "pooled_transports", pooledTransportCount)
 	}
 }
 
