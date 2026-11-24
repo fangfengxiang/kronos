@@ -25,6 +25,7 @@ var (
 	_ func(time.Duration) kronos.Option                                          = kronos.CallTimeout
 	_ func(kronos.RPCMetrics) kronos.Option                                      = kronos.Metrics
 	_ func(kronos.RPCTracer) kronos.Option                                       = kronos.Tracing
+	_ func(kronos.ObservabilityConfig) kronos.Option                             = kronos.Observability
 	_ func(string, http.Handler) kronos.Option                                   = kronos.Diagnostics
 	_ func(protoreflect.ServiceDescriptor, ...kronos.UnaryMethod) kronos.Service = kronos.Bind
 	_ func(protoreflect.Name, *emptypb.Empty, *emptypb.Empty,

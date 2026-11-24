@@ -76,7 +76,7 @@ func (client *Client) releaseConnections() error {
 		closeError = errors.Join(closeError, peer.connection.Close())
 	}
 	if closeError == nil {
-		slog.Debug("RPC client closed", "event", "rpc_client_closed", "protocol", client.config.protocol,
+		rpcLogger(client.config.logger).Debug("RPC client closed", "event", "rpc_client_closed", "protocol", client.config.protocol,
 			"released_transports", len(activePeers))
 	}
 	return closeError
@@ -120,7 +120,8 @@ func (client *Client) Invoke(ctx context.Context, method protoreflect.MethodDesc
 		MicroName:   serviceName,
 		MicroMethod: string(service.Name()) + "." + string(method.Name()),
 	}
-	observation := rpcObservation{service: serviceName, operation: operation.GRPCMethod, protocol: client.config.protocol}
+	observation := rpcObservation{service: serviceName, operation: operation.GRPCMethod,
+		protocol: client.config.protocol, logger: client.config.logger}
 	ctx, completion := observation.begin(ctx, client.config, "client")
 	transportAttempts := 0
 	defer func() {

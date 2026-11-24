@@ -30,10 +30,9 @@ func main() {
 }
 
 func runCommand(ctx context.Context) (runError error) {
-	var options []kronos.Option
-	if address := os.Getenv("KRONOS_ORDER_DIAGNOSTICS"); address != "" {
-		metrics := prometheus.NewServiceRPCMetrics()
-		options = append(options, kronos.Metrics(metrics), kronos.Diagnostics(address, metrics))
+	observability := kronos.ObservabilityConfig{DiagnosticsAddress: os.Getenv("KRONOS_ORDER_DIAGNOSTICS")}
+	if observability.DiagnosticsAddress != "" {
+		observability.Metrics = prometheus.NewServiceRPCMetrics()
 	}
 	if endpoint := os.Getenv("KRONOS_ORDER_TRACE_ENDPOINT"); endpoint != "" {
 		tracer, err := oteltrace.New(ctx, oteltrace.Config{ServiceName: orderServiceName(), Endpoint: endpoint})
@@ -45,9 +44,9 @@ func runCommand(ctx context.Context) (runError error) {
 			defer cancel()
 			runError = errors.Join(runError, tracer.Close(shutdown))
 		}()
-		options = append(options, kronos.Tracing(tracer))
+		observability.Tracer = tracer
 	}
-	return run(ctx, options...)
+	return run(ctx, kronos.Observability(observability))
 }
 
 func run(ctx context.Context, optional ...kronos.Option) (runError error) {

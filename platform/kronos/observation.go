@@ -13,6 +13,7 @@ type rpcObservation struct {
 	service   string
 	operation string
 	protocol  rpc.Protocol
+	logger    *slog.Logger
 }
 
 type rpcCompletion struct {
@@ -45,7 +46,7 @@ func (completion rpcCompletion) finish(err error) time.Duration {
 }
 
 func (observation rpcObservation) started(ctx context.Context, inFlight int64) {
-	slog.DebugContext(ctx, "RPC request admitted", "event", "rpc_started", "service", observation.service,
+	rpcLogger(observation.logger).DebugContext(ctx, "RPC request admitted", "event", "rpc_started", "service", observation.service,
 		"operation", observation.operation, "protocol", observation.protocol, "in_flight", inFlight)
 }
 
@@ -54,7 +55,7 @@ func (observation rpcObservation) finished(ctx context.Context, event string, du
 	if err != nil {
 		level = slog.LevelWarn
 	}
-	logger := slog.Default()
+	logger := rpcLogger(observation.logger)
 	if !logger.Enabled(ctx, level) {
 		return
 	}

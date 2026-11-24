@@ -23,7 +23,7 @@ import (
 var orderProtocols = [...]kronos.WireProtocol{kronos.ProtocolGRPC, kronos.ProtocolMicroV2}
 
 func TestOrderWithdrawsBeforeBothProtocolsDrain(t *testing.T) {
-	logPath := captureRPCLogs(t)
+	logger, logPath := newRPCLogCapture(t)
 	registry := &withdrawalBarrier{
 		Registry: openTestRegistry(t), started: make(chan struct{}), proceed: make(chan struct{}),
 	}
@@ -36,7 +36,9 @@ func TestOrderWithdrawsBeforeBothProtocolsDrain(t *testing.T) {
 	metrics := prometheus.NewServiceRPCMetrics()
 	diagnostics := availableDiagnosticAddress(t)
 	diagnosticClient := newDiagnosticClient(t)
-	running := runOrderReplica(t, registry, name, implementation, kronos.Metrics(metrics), kronos.Diagnostics(diagnostics, metrics))
+	running := runOrderReplica(t, registry, name, implementation, kronos.Observability(kronos.ObservabilityConfig{
+		DiagnosticsAddress: diagnostics, Metrics: metrics, Logger: logger,
+	}))
 	waitForInstances(t, registry.Registry, name, kronos.ProtocolGRPC, 1)
 	initial := diagnosticGET(t, diagnosticClient, diagnostics, "/metrics", http.StatusOK)
 	for _, protocol := range orderProtocols {
@@ -48,7 +50,9 @@ func TestOrderWithdrawsBeforeBothProtocolsDrain(t *testing.T) {
 	var calls []pendingOrder
 	for _, protocol := range orderProtocols {
 		address := waitForInstances(t, registry.Registry, name, protocol, 1)[0]
-		orders := newDiscoveredOrder(t, registry, name, protocol, kronos.Metrics(metrics))
+		orders := newDiscoveredOrder(t, registry, name, protocol, kronos.Observability(kronos.ObservabilityConfig{
+			Metrics: metrics, Logger: logger,
+		}))
 		result := beginOrderCall(callContext, orders, string(protocol))
 		serverContext := awaitOrderSignal(t, implementation.entered)
 		calls = append(calls, pendingOrder{orders: orders, result: result, serverContext: serverContext, address: address})

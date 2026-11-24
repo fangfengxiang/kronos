@@ -58,6 +58,8 @@ GOWORK=off go run ./examples/order/cmd/order-client -protocol micro-v2 -id 订�
 
 在 Order 进程设置 `KRONOS_ORDER_DIAGNOSTICS=127.0.0.1:9190` 可启用 `/livez`、`/readyz` 和 Prometheus `/metrics`。诊断端口单独绑定。应用从已经注册的 Proto 绑定取得方法路径，添加方法后重新生成并注册便会纳入指标。观察可发现状态时按对应协议查询 etcd，再执行 Order 调用确认业务结果。[Order 运行观测](../design/order-diagnostics.md)
 
+应用可用 `kronos.Observability(kronos.ObservabilityConfig{DiagnosticsAddress: address, Metrics: metrics, Tracer: tracer, Logger: logger})` 一次交付观测配置。只提供地址即可开启探针。指标使用一个可抓取的实例，应用创建的 tracer 在排空后由应用入口关闭。[Order 接线](../../examples/order/cmd/order/main.go)
+
 设置 `KRONOS_ORDER_TRACE_ENDPOINT=http://127.0.0.1:4318/v1/traces` 将 Trace 发到本机 OTLP HTTP 接收端。应用开启 JSON 日志，在失败日志中按 `trace_id` 和 `span_id` 查找对应 span。Go 调用方可把自己创建的 `oteltrace.Provider` 通过 `kronos.Tracing` 交给客户端，并在关闭客户端后释放 provider。[跨协议 Trace](../design/order-diagnostics.md#trace-与调用定位)
 
 以下示例单独启动 Order 与两版官方 go-micro v2。旧客户端发现并调用 Order，Order 客户端命令显式用 `micro-v2` 查找旧服务端，返回 `订单-03 legacy-confirmed`。

@@ -2,7 +2,6 @@ package kronos
 
 import (
 	"context"
-	"log/slog"
 	"slices"
 	"time"
 
@@ -73,7 +72,7 @@ func (client *Client) refreshService(serviceName string, view *serviceView) {
 	started := time.Now()
 	addresses, err := client.config.registry.Lookup(ctx, serviceName, string(client.config.protocol))
 	if err != nil && client.ctx.Err() == nil {
-		slog.WarnContext(ctx, "RPC discovery failed", "event", "rpc_discovery_failed", "service", serviceName,
+		rpcLogger(client.config.logger).WarnContext(ctx, "RPC discovery failed", "event", "rpc_discovery_failed", "service", serviceName,
 			"protocol", client.config.protocol, "duration_us", time.Since(started).Microseconds(), "error", err)
 	}
 	addresses = slices.Clone(addresses)
@@ -106,10 +105,10 @@ func (client *Client) refreshService(serviceName string, view *serviceView) {
 	view.lookupDone = nil
 	client.mu.Unlock()
 	for _, connection := range staleConnections {
-		closeIdle(connection)
+		client.closeIdle(connection)
 	}
 	if snapshotApplied {
-		slog.DebugContext(ctx, "RPC discovery snapshot applied", "event", "rpc_discovery_snapshot", "service", serviceName,
+		rpcLogger(client.config.logger).DebugContext(ctx, "RPC discovery snapshot applied", "event", "rpc_discovery_snapshot", "service", serviceName,
 			"protocol", client.config.protocol, "discovered_instances", instanceCount, "pooled_transports", pooledTransportCount)
 	}
 }
@@ -165,12 +164,12 @@ func (client *Client) release(peer *peer, unavailable bool) {
 	}
 	client.mu.Unlock()
 	if shouldClose {
-		closeIdle(peer.connection)
+		client.closeIdle(peer.connection)
 	}
 }
 
-func closeIdle(connection transport.Client) {
+func (client *Client) closeIdle(connection transport.Client) {
 	if err := connection.Close(); err != nil {
-		slog.Warn("close rpc instance connection", "error", err)
+		rpcLogger(client.config.logger).Warn("close rpc instance connection", "error", err)
 	}
 }

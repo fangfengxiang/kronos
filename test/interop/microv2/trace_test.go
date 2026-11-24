@@ -11,6 +11,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"maps"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -28,7 +29,8 @@ import (
 )
 
 func TestOrderCorrelatesSignalsAcrossBothProtocols(t *testing.T) {
-	clientLogPath := captureRPCLogs(t)
+	clientLogger, clientLogPath := newRPCLogCapture(t)
+	missingLogger, missingLogPath := newRPCLogCapture(t)
 	registry := openTestRegistry(t)
 	traceEndpoint, captured := orderTraceCollector(t)
 	diagnostics := availableDiagnosticAddress(t)
@@ -57,9 +59,9 @@ func TestOrderCorrelatesSignalsAcrossBothProtocols(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	options := []kronos.Option{kronos.Tracing(tracer), kronos.Metrics(clientMetrics)}
+	observability := kronos.ObservabilityConfig{Tracer: tracer, Metrics: clientMetrics, Logger: clientLogger}
 	for _, protocol := range orderProtocols {
-		orders := newDiscoveredOrder(t, registry, serviceName, protocol, options...)
+		orders := newDiscoveredOrder(t, registry, serviceName, protocol, kronos.Observability(observability))
 		result, err := orders.GetOrder(ctx, &order.GetOrderRequest{OrderId: "trace-order"})
 		if err != nil || result.GetStatus() != "confirmed" || result.GetOrderId() != "trace-order" {
 			t.Fatalf("%s order = %v, %v", protocol, result, err)
@@ -71,7 +73,8 @@ func TestOrderCorrelatesSignalsAcrossBothProtocols(t *testing.T) {
 			t.Fatalf("%s invalid order = %v", protocol, err)
 		}
 	}
-	missing := newDiscoveredOrder(t, registry, "orders.missing."+rand.Text(), kronos.ProtocolGRPC, options...)
+	observability.Logger = missingLogger
+	missing := newDiscoveredOrder(t, registry, "orders.missing."+rand.Text(), kronos.ProtocolGRPC, kronos.Observability(observability))
 	_, err = missing.GetOrder(ctx, &order.GetOrderRequest{OrderId: "not-discoverable"})
 	var failure *kronos.Error
 	if !errors.As(err, &failure) || failure.Code != kronos.Unavailable || failure.Reason != "NO_INSTANCES" {
@@ -92,7 +95,18 @@ func TestOrderCorrelatesSignalsAcrossBothProtocols(t *testing.T) {
 	if err := flush(); err != nil {
 		t.Fatal(err)
 	}
-	captured.assertSignals(t, loadRPCTraceLogs(t, clientLogPath), loadRPCTraceLogs(t, process.logPath))
+	clientLogs := loadRPCTraceLogs(t, clientLogPath)
+	missingLogs := loadRPCTraceLogs(t, missingLogPath)
+	if len(clientLogs) != 4 || len(missingLogs) != 1 {
+		t.Fatalf("isolated client logs have %d and %d completed calls", len(clientLogs), len(missingLogs))
+	}
+	for _, entry := range missingLogs {
+		if entry.Reason != "NO_INSTANCES" {
+			t.Fatalf("unexpected event in missing service's log: %+v", entry)
+		}
+	}
+	maps.Copy(clientLogs, missingLogs)
+	captured.assertSignals(t, clientLogs, loadRPCTraceLogs(t, process.logPath))
 }
 
 type recordedOrderTraces struct {

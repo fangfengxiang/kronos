@@ -10,6 +10,7 @@
 | `platform/kronos` 和 `infra/etcd` 的当前调用 | 应用创建并关闭注册中心，向 Kronos 注入服务名、注册中心及监听地址，服务端注册生成绑定，客户端只声明所用协议 | 使用 [Order 命令](../../examples/order/cmd/order/main.go) 和 [类型化客户端命令](../../examples/order/cmd/order-client/main.go) 作为后续装配复审的基线。[所有权和故障用例](../design/service-governance.md) |
 | `infra/consul` | TextBackend 手工生成 ID、协调注册失败回滚，并包装传输的 Stop 以注销实例。新一元服务若复制该流程，需要重复承担这些职责 | 新的一元服务用 `consul.NewRPCRegistry` 加统一的 `kronos.Registry`。已有 TextBackend 与 Assistant 接线经实际回归。适配器仍按 Consul 的 passing 健康结果发现标准 gRPC。[责任与验收](../design/consul-service-registration.md) |
 | `infra/prometheus`、`platform/kronos` 的服务指标 | Order 的装配重复列出完整 RPC 方法路径。新增 Proto 方法时需要额外更新应用命令 | 选择 `NewServiceRPCMetrics` 后由 Kronos 传入实际绑定的方法。固定清单仍适用于仅调用远端服务的客户端。真实双协议摘流测试观察了首次请求前的零值、在途累加和完成清理。[设计与用法](../design/order-diagnostics.md) |
+| `platform/kronos`、`infra/oteltrace` 的观测装配 | Order 分别挂接指标采集、探针和 Trace。RPC 及发现事件使用进程日志，无法为同进程的客户端配置单独输出 | 使用一个 `Observability` 配置挂接同一指标对象及日志、Trace。现有独立选项保留，创建者依旧关闭 exporter。用真实订单、无实例及摘流核对信号和实例日志。[统一接线](../design/order-diagnostics.md#集中装配与所有权) |
 
 2026-11-23 审查 `b0c3419` 上 `go.work` 列出的 22 个独立模块。根模块承载参考服务与集成验收。逐库核对公开契约、调用边界、资源收尾和测试入口，并记录 `examples/` 中可追到实际调用的接线。[工作区](../../go.work) · [模块与依赖边界](../adr/0004-layer-and-module-boundaries.md)
 

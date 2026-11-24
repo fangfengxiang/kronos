@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"time"
 
@@ -42,6 +43,21 @@ type RPCTracer interface {
 	Propagate(ctx context.Context, set func(string, string))
 }
 
+// RPCMetricsHandler records RPC measurements and serves their HTTP exposition.
+type RPCMetricsHandler interface {
+	RPCMetrics
+	http.Handler
+}
+
+// ObservabilityConfig configures the signals of one application or client.
+// The caller retains ownership of the observers and their resources.
+type ObservabilityConfig struct {
+	DiagnosticsAddress string
+	Metrics            RPCMetricsHandler
+	Tracer             RPCTracer
+	Logger             *slog.Logger
+}
+
 type settings struct {
 	name            string
 	registry        RegistryProvider
@@ -51,10 +67,18 @@ type settings struct {
 	scrape          http.Handler
 	metrics         RPCMetrics
 	tracer          RPCTracer
+	logger          *slog.Logger
 	advertiseHost   string
 	shutdownTimeout time.Duration
 	protocol        rpc.Protocol
 	callTimeout     time.Duration
+}
+
+func rpcLogger(logger *slog.Logger) *slog.Logger {
+	if logger != nil {
+		return logger
+	}
+	return slog.Default()
 }
 
 // Option configures a Kronos instance.
@@ -88,6 +112,27 @@ func Metrics(metrics RPCMetrics) Option {
 // Tracing borrows an optional tracer for the app or client.
 func Tracing(tracer RPCTracer) Option {
 	return func(config *settings) { config.tracer = tracer }
+}
+
+// Observability applies the configured signals. If DiagnosticsAddress is set,
+// Metrics is also served at /metrics. A client uses the observers and logger
+// without starting a diagnostics listener.
+func Observability(observers ObservabilityConfig) Option {
+	return func(config *settings) {
+		if observers.DiagnosticsAddress != "" {
+			config.diagnostics = observers.DiagnosticsAddress
+			config.scrape = observers.Metrics
+		}
+		if observers.Metrics != nil {
+			config.metrics = observers.Metrics
+		}
+		if observers.Tracer != nil {
+			config.tracer = observers.Tracer
+		}
+		if observers.Logger != nil {
+			config.logger = observers.Logger
+		}
+	}
 }
 
 // Diagnostics configures an HTTP listener for liveness, readiness and an

@@ -6,6 +6,12 @@ Order 维护者需要区分实例仍在运行、正在接纳请求和已在 etcd
 
 应用入口按需创建独立的 Prometheus 适配实例。Kronos 使用 `Metrics` 注入一元调用观察点。使用 `Diagnostics(address, handler)` 明确监听地址以及挂载到 `/metrics` 的标准 HTTP handler。诊断端口复用 `framework/app` 绑定与关停，探针复用 `App.Probes`。`/livez` 和 `/readyz` 可分别观察进程窗口和接纳状态。需要确认可发现时，调用端使用对应协议查询 etcd，并执行实际业务请求。诊断端口由部署配置持有，两个业务协议所有的注册数据继续来自各自监听。
 
+## 集中装配与所有权
+
+一元应用可用一个 `kronos.Observability` 选项交付观测配置。设置诊断地址即可启用两个探针。附带可抓取的指标观察器时，同一个实例记录 RPC 并提供 `/metrics`。Tracer 负责 span 和传播，配置中的标准 `slog.Logger` 接收本实例的 RPC、发现和连接事件。应用入口持有观察器、日志输出和 exporter。应用排空后，创建方按现有关闭预算刷新 exporter。客户端可传入同样的观察器和日志器，诊断监听由服务端运行。
+
+各字段按需配置，原有 `Metrics`、`Diagnostics` 和 `Tracing` 选项继续服务于需要单独接线的调用方。应用命令可为本进程的第三方组件配置默认日志器。通过真实双协议调用核对指标和 Trace，使用独立日志输出验证实例路由和故障关联。[Go slog](https://pkg.go.dev/log/slog@go1.25.0) · [OpenTelemetry Go](https://opentelemetry.io/docs/languages/go/instrumentation/)
+
 ## 信号及含义
 
 | 信号 | 记录范围 |
@@ -41,3 +47,4 @@ Order 维护者需要区分实例仍在运行、正在接纳请求和已在 etcd
 
 - Go 1.25.0、Ubuntu 24.04 Linux amd64 与真实 etcd v3.6.16 运行 `GOWORK=off go test -tags=interop,etcd_interop -count=1 -v ./test/interop/microv2`。gRPC 和 MicroRPC 的成功、校验失败均导出匹配的客户端和服务端 span。OTLP 共收到九个 span。日志中的失败 trace/span ID 与导出一致，两侧指标数匹配实际调用。空地址查询保留 `NO_INSTANCES` 和零发送次数，仅出现客户端 span。[端到端信号验收](../../test/interop/microv2/trace_test.go)
 - macOS arm64 关闭工作区，`infra/oteltrace`、`infra/microv2`、`platform/kronos`、Order 及 Assistant 命令包的 Go 竞态测试通过。分层检查通过。复用已接入的日志、Prometheus 和 OTLP 适配，两个业务协议共用一个观察点。[Trace 适配](../../infra/oteltrace/provider.go) · [RPC 观察点](../../platform/kronos/observation.go)
+- Go 1.25.0、Ubuntu 24.04 Linux amd64 与真实 etcd v3.6.16 对信号关联及摘流各运行四轮，随后完整互通与治理通过。使用一组客户端记录四次标准与兼容协议调用，独立客户端记录一次无实例失败。两个日志输出各收到对应 span 的完成事件。Order 进程按原有预算排空并导出九个关联 span，指标与实际调用一致。macOS arm64 的全仓竞态和依赖检查通过。[实例日志与 Trace 测试](../../test/interop/microv2/trace_test.go) · [统一装配下的摘流](../../test/interop/microv2/drain_test.go)

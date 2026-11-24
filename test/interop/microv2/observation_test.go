@@ -18,24 +18,32 @@ import (
 
 func captureRPCLogs(t *testing.T) string {
 	t.Helper()
-	output, err := os.CreateTemp(t.TempDir(), "rpc-log")
-	if err != nil {
-		t.Fatal(err)
-	}
+	logger, path := newRPCLogCapture(t)
 	original := slog.Default()
 	originalOutput, originalFlags := log.Writer(), log.Flags()
-	slog.SetDefault(frameworklog.NewJSON(output, &slog.HandlerOptions{Level: slog.LevelDebug}))
+	slog.SetDefault(logger)
 	t.Cleanup(func() {
 		slog.SetDefault(original)
 		log.SetOutput(originalOutput)
 		log.SetFlags(originalFlags)
+	})
+	return path
+}
+
+func newRPCLogCapture(t *testing.T) (*slog.Logger, string) {
+	t.Helper()
+	output, err := os.CreateTemp(t.TempDir(), "rpc-log")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
 		_ = output.Close()
 		if t.Failed() {
 			log, _ := os.ReadFile(output.Name())
 			t.Logf("RPC events:\n%s", log)
 		}
 	})
-	return output.Name()
+	return frameworklog.NewJSON(output, &slog.HandlerOptions{Level: slog.LevelDebug}), output.Name()
 }
 
 func assertDrainRPCLogs(t *testing.T, path, name string) {

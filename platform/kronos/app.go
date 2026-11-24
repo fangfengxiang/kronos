@@ -177,7 +177,8 @@ func (application *App) observeServices(services []transport.Service, protocol r
 	for serviceIndex, service := range observed {
 		service.Methods = slices.Clone(service.Methods)
 		for methodIndex, method := range service.Methods {
-			observation := rpcObservation{service: application.config.name, protocol: protocol, operation: rpcMethodPath(service.Name, method.Name)}
+			observation := rpcObservation{service: application.config.name, protocol: protocol,
+				operation: rpcMethodPath(service.Name, method.Name), logger: application.config.logger}
 			service.Methods[methodIndex].Invoke = application.observe(observation, ready, method.Invoke)
 		}
 		observed[serviceIndex] = service
