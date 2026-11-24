@@ -1,5 +1,14 @@
 # Kronos 类库与原生 Go 验收审查
 
+## 面向使用者的复审基线
+
+`40910b7` 的工作区包含 24 个独立模块和一个参考服务根模块。比上一轮增加了 `platform/kronos` 与 `infra/etcd`。复审沿用下方调用与所有权记录，以实际入口量化重复配置和失败责任。优先检查独立业务从 Proto 到运行的链路。[工作区](../../go.work)
+
+| 模块或链路 | 常用操作与负载基线 | 决策与可执行证据 |
+| --- | --- | --- |
+| `platform/protogen`、`platform/verify` 的外部开发链路 | 原有验收复制 Kronos 根模块，业务作者无法从验收判断独立模块的 Buf 路径及工作区依赖 | 共用现有生成器和模板。新增仓库外 Go 模块回归，用自己的导入路径生成和构建，并经真实 etcd 调用。[源码接入](../guide/README.md#仓库外开发一元服务) · [外部回归](../../platform/verify/scaffold_test.go) |
+| `platform/kronos` 和 `infra/etcd` 的当前调用 | 应用创建并关闭注册中心，向 Kronos 注入服务名、注册中心及监听地址，服务端注册生成绑定，客户端只声明所用协议 | 使用 [Order 命令](../../examples/order/cmd/order/main.go) 和 [类型化客户端命令](../../examples/order/cmd/order-client/main.go) 作为后续装配复审的基线。[所有权和故障用例](../design/service-governance.md) |
+
 2026-11-23 审查 `b0c3419` 上 `go.work` 列出的 22 个独立模块。根模块承载参考服务与集成验收。逐库核对公开契约、调用边界、资源收尾和测试入口，并记录 `examples/` 中可追到实际调用的接线。[工作区](../../go.work) · [模块与依赖边界](../adr/0004-layer-and-module-boundaries.md)
 
 ## 初审发现

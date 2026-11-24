@@ -25,9 +25,10 @@ func validScaffoldName(name string) bool {
 }
 
 type scaffoldNames struct {
-	Package    string
-	Service    string
-	ImportPath string
+	Package       string
+	Service       string
+	ImportPath    string
+	PluginCommand []string
 }
 
 func protoServiceName(packageName string) string {
@@ -64,7 +65,11 @@ func scaffoldService(ctx context.Context, repository, name string) (scaffoldErro
 		return err
 	}
 	defer os.RemoveAll(staging)
-	if err := writeStarter(staging, name); err != nil {
+	if err := writeStarter(staging, scaffoldNames{
+		Package: name, Service: protoServiceName(name),
+		ImportPath:    kronosModule + "/examples/" + name,
+		PluginCommand: []string{"go", "-C", "../../platform/protogen", "run", "."},
+	}); err != nil {
 		return err
 	}
 	if err := runCommand(ctx, staging, "buf", "lint"); err != nil {
@@ -88,22 +93,18 @@ func scaffoldService(ctx context.Context, repository, name string) (scaffoldErro
 	return nil
 }
 
-func writeStarter(directory, name string) error {
-	names := scaffoldNames{
-		Package: name, Service: protoServiceName(name),
-		ImportPath: kronosModule + "/examples/" + name,
-	}
+func writeStarter(directory string, names scaffoldNames) error {
 	templates, err := template.New("scaffold").Option("missingkey=error").ParseFS(scaffoldTemplates, "scaffold/*")
 	if err != nil {
 		return err
 	}
 	for _, fixture := range []struct{ template, output string }{
-		{template: "service.proto.tmpl", output: filepath.Join("api", "kronos", name, "v1", name+".proto")},
+		{template: "service.proto.tmpl", output: filepath.Join("api", "kronos", names.Package, "v1", names.Package+".proto")},
 		{template: "buf.yaml.tmpl", output: "buf.yaml"},
 		{template: "buf.gen.yaml.tmpl", output: "buf.gen.yaml"},
 		{template: "service.go.tmpl", output: "service.go"},
-		{template: "server.go.tmpl", output: filepath.Join("cmd", name, "main.go")},
-		{template: "client.go.tmpl", output: filepath.Join("cmd", name+"-client", "main.go")},
+		{template: "server.go.tmpl", output: filepath.Join("cmd", names.Package, "main.go")},
+		{template: "client.go.tmpl", output: filepath.Join("cmd", names.Package+"-client", "main.go")},
 		{template: "README.md.tmpl", output: "README.md"},
 	} {
 		rendered := new(bytes.Buffer)

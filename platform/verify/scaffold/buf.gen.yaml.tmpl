@@ -8,7 +8,10 @@ plugins:
   - local: ["go", "run", "google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.6.2"]
     out: internal/wire
     opt: paths=source_relative
-  - local: ["go", "-C", "../../platform/protogen", "run", "."]
+  - local:
+{{- range .PluginCommand }}
+      - {{printf "%q" .}}
+{{- end }}
     out: .
     strategy: all
     opt:

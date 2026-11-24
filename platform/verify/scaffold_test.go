@@ -81,6 +81,52 @@ func TestScaffoldBuildsFreshService(t *testing.T) {
 	}
 }
 
+func TestIndependentProjectBuildsFreshService(t *testing.T) {
+	if _, err := exec.LookPath("buf"); err != nil {
+		t.Skip("Buf is required to generate an independent service")
+	}
+	repository, err := filepath.Abs("../..")
+	if err != nil {
+		t.Fatal(err)
+	}
+	project := t.TempDir()
+	name := "warehouse" + strings.ToLower(rand.Text()[:8])
+	module := "example.com/" + name
+	ctx, cancel := context.WithTimeout(t.Context(), 3*time.Minute)
+	defer cancel()
+	t.Setenv("GOWORK", "off")
+	if err := runCommand(ctx, project, "go", "mod", "init", module); err != nil {
+		t.Fatal(err)
+	}
+	workspace := []string{"work", "init", "."}
+	for _, path := range []string{"platform/protogen", "platform/kronos", "framework/app", "framework/rpc", "infra/etcd", "infra/microv2"} {
+		workspace = append(workspace, filepath.Join(repository, path))
+	}
+	if err := runCommand(ctx, project, "go", workspace...); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("GOWORK", filepath.Join(project, "go.work"))
+	if err := writeStarter(project, scaffoldNames{
+		Package: name, Service: protoServiceName(name), ImportPath: module,
+		PluginCommand: []string{"go", "run", kronosModule + "/platform/protogen"},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := runCommand(ctx, project, "buf", "lint"); err != nil {
+		t.Fatal(err)
+	}
+	if err := generateTarget(ctx, project, project, "buf.gen.yaml"); err != nil {
+		t.Fatal(err)
+	}
+	binaries := t.TempDir()
+	if err := runCommand(ctx, project, "go", "build", "-o", binaries, "./cmd/..."); err != nil {
+		t.Fatal(err)
+	}
+	if endpoint := os.Getenv("KRONOS_ETCD_TEST_ADDRESS"); endpoint != "" && runtime.GOOS != "windows" {
+		testScaffoldRPC(t, ctx, binaries, name, endpoint)
+	}
+}
+
 func copyScaffoldWorkspace(t *testing.T) string {
 	t.Helper()
 	source := filepath.Join("..", "..")

@@ -26,10 +26,10 @@ go-micro v2 的双向互通单独运行 `GOWORK=off go test -tags=interop -count
 ```sh
 GOWORK=off go -C infra/etcd test -tags=etcd_integration -count=1 -v ./...
 GOWORK=off go test -tags=interop,etcd_interop -count=1 -v ./test/interop/microv2
-GOWORK=off go -C platform/verify test -count=1 -run '^TestScaffoldBuildsFreshService$' -v ./...
+GOWORK=off go -C platform/verify test -count=1 -run '^Test(Scaffold|IndependentProject)BuildsFreshService$' -v ./...
 ```
 
-三条命令依次验证真实租约、Order 及官方 go-micro v2 双向互通、从脚手架生成的全新服务。上游 SDK 在隔离的临时 Go 模块内构建。第三条使用锁定的 Buf 版本，基于同一个真实 etcd 运行生成的客户端和服务端。首次运行需要访问 Go 模块代理，或准备可用的缓存。[官方互通夹具](../../test/interop/microv2/testdata/etcdregistry/main.go) · [脚手架实测](service-scaffold.md#实测)
+三条命令依次验证真实租约、Order 及官方 go-micro v2 双向互通、仓库内脚手架与独立业务模块生成的全新服务。上游 SDK 在隔离的临时 Go 模块内构建。第三条使用锁定的 Buf 版本，基于同一个真实 etcd 运行生成的客户端和服务端。首次运行需要访问 Go 模块代理，或准备可用的缓存。[官方互通夹具](../../test/interop/microv2/testdata/etcdregistry/main.go) · [脚手架实测](service-scaffold.md#实测)
 
 ## 外部 SDK 归属
 

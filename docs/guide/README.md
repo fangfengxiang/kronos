@@ -87,6 +87,18 @@ go run ./examples/warehouse/cmd/warehouse-client -protocol micro-v2 -value 入�
 
 按业务修改新服务 `api/` 下的 Proto 后，运行 `go run ./platform/verify generate`。提交前用 `go run ./platform/verify proto` 检查产物，用 `go run ./platform/verify breaking HEAD` 核对协议兼容性。[文件契约与实测](../design/service-scaffold.md)
 
+### 仓库外开发一元服务
+
+在业务仓库保留自己的 `go.mod`。使用固定提交的 Kronos 源码接入工作区。在业务模块目录执行以下命令，`kronos_source` 指向本机的 Kronos 源码目录。已有 `go.work` 时用 `go work use` 加入相同目录。
+
+```sh
+go work init . "$kronos_source/platform/protogen" "$kronos_source/platform/kronos" \
+  "$kronos_source/framework/app" "$kronos_source/framework/rpc" \
+  "$kronos_source/infra/etcd" "$kronos_source/infra/microv2"
+```
+
+可从上一节生成的服务开始。将业务 Go 导入、Proto 的 `go_package` 前缀和 `buf.gen.yaml` 中的 `module`、`api_import` 改为业务模块路径。将模板中 Kronos 插件的 `local` 改为 `["go", "run", "github.com/fangfengxiang/kronos/platform/protogen"]`。执行 `buf lint`、`buf generate` 和 `go build ./cmd/...`，再按上一节用 gRPC 和 MicroRPC 调用生成的服务。工作区属于开发和构建环境。业务提交自己的 Proto、生成产物和应用代码。[仓库外生成与调用测试](../../platform/verify/scaffold_test.go)
+
 ## 生成 Assistant 协议
 
 准备 Go 1.25.0 或更高版本，并将 [Buf 1.70.0](https://github.com/bufbuild/buf/releases/tag/v1.70.0) 放入 `PATH`。首次生成需要访问公开的 Go 模块代理和 Buf Schema Registry。生成命令从仓库根目录执行。
