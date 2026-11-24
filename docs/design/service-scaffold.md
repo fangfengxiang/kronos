@@ -15,6 +15,14 @@
 - `breaking` 检查已有服务的 Proto 快照。新增服务可以加入基线，后续同名服务按 Buf FILE 规则演进。移除已进入基线的服务需按版本迁移处理。[公开契约兼容](../adr/0010-public-contract-compatibility.md)
 - 脚手架使用标准库和现有 Buf、Proto 插件。生成的业务和命令使用公开 Kronos 与协议类型。传输 SDK 限于生成的私有绑定。
 
+### 由协议确定公开 Go 包
+
+独立业务作者设置 Proto 的 `go_package` 时，已指定私有生成绑定所在的 `<公开 Go 包>/internal/wire[/子目录]`。原脚手架还在 Buf 的 Kronos 插件参数中复制同一个公开包路径。漏改会在迁移到独立模块后触发生成错误。
+
+新模板省略 `api_import`。生成器从参加生成的文件的有效 Go 导入路径取得公开包，要求全部文件共享该公开包下的 `internal/wire`。混入另一公开包或缺少私有绑定根时，给出含 Proto 文件名的错误。只参加依赖解析的 Proto 不参与选择。Buf 的 `module` 参数继续控制生成文件的相对落盘位置。现有 `api_import` 保留显式选择及校验行为。[Protobuf Go 包选项](https://protobuf.dev/reference/go/go-generated/#package) · [Buf 生成配置](https://buf.build/docs/configuration/v2/buf-gen-yaml/)
+
+采用现有 `protogen` 收到的描述符及 Go 导入路径。已有工程可保留显式参数，回退生成器时只需恢复这一项。通过条件为显式与推导产物逐字节相同，混合所有者被拒绝，独立项目可省掉一次包路径配置，命令与自动接线数量保持原有水平。使用真实 etcd 验证新模板生成、构建、双协议调用、正常关停及发布态依赖解析。
+
 ## 验收
 
 ### 仓库外业务项目
@@ -30,6 +38,8 @@
 在 Linux 使用锁定的 Go 和 Buf 从空的服务目录生成示例。核对目标冲突时保留原文件，新服务可通过相同的 lint、重新生成和依赖规则，客户端与服务端均可构建。用实际 etcd 运行生成服务，标准 gRPC 和显式 MicroRPC 都返回样例业务值。变更一个已发布字段的类型应触发兼容门禁。
 
 ## 实测
+
+- Go 1.25.0、Buf 1.70.0、Ubuntu 24.04 Linux arm64 与 etcd v3.6.16 执行 `GOWORK=off go -C platform/verify test -count=1 -run '^Test(Scaffold|IndependentProject)BuildsFreshService$' -v ./...`。仓库内和独立项目均从省略 `api_import` 的模板生成、构建，发现并经双协议返回业务值，收到终止信号后以状态 0 退出。生成器竞态测试验证显式参数和推导产生同样的输出，两种错误归属被拒绝。全仓 `verify proto`、`verify breaking d51d1ac` 和 `verify deps` 通过。
 
 - Go 1.25.0、Buf 1.70.0、Ubuntu 24.04 Linux arm64 与官方 etcd v3.6.16，运行 `GOWORK=off go -C platform/verify test -count=1 -run '^TestScaffoldBuildsFreshService$' -v ./...`。在隔离工作树中生成带数字名称的新服务，重生成的公开和私有绑定与原文件一致。两个实际命令通过 etcd 找到实例，分别返回 `仓库-收到回执`，服务随后正常退出。[生成、构建与调用](../../platform/verify/scaffold_test.go)
 - macOS arm64 使用同一 Go 和 Buf 运行 `GOWORK=off go -C platform/verify test -race -count=2 -run '^Test(Scaffold|Breaking)' -v ./...`。两轮通过，验证目标文件保留，独立模块的字段变更及模块丢失能被兼容检查发现。真实工作树的协议生成和 `breaking be671e1` 通过。[独立模块兼容](../../platform/verify/compatibility_test.go)

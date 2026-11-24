@@ -125,7 +125,7 @@ go get "github.com/fangfengxiang/kronos/platform/kronos@$kronos_revision" \
   "github.com/fangfengxiang/kronos/infra/etcd@$kronos_revision"
 ```
 
-可从上一节生成的服务开始。将业务 Go 导入、Proto 的 `go_package` 前缀和 `buf.gen.yaml` 中的 `module`、`api_import` 改为业务模块路径。将 Kronos 插件的 `local` 改为 `["go", "run", "github.com/fangfengxiang/kronos/platform/protogen@<同一个提交>"]`。执行 `buf lint`、`buf generate`、`go mod tidy`、`go build ./cmd/...`。提交业务的 Proto、生成产物、应用代码和模块清单。[发布态验收](../design/go-verification.md#仓库外版本验收)
+可从上一节生成的服务开始。将业务 Go 导入、Proto 的 `go_package` 前缀和 `buf.gen.yaml` 中的 `module` 改为业务模块路径。生成器从 `go_package` 的 `/internal/wire` 路径确定公开 Go 包。将 Kronos 插件的 `local` 改为 `["go", "run", "github.com/fangfengxiang/kronos/platform/protogen@<同一个提交>"]`。执行 `buf lint`、`buf generate`、`go mod tidy`、`go build ./cmd/...`。提交业务的 Proto、生成产物、应用代码和模块清单。[发布态验收](../design/go-verification.md#仓库外版本验收)
 
 需要联调 Kronos 源码时，`kronos_source` 指向本机的 Kronos 源码目录。已有 `go.work` 时用 `go work use` 加入相同目录。
 

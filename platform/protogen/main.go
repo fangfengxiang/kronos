@@ -12,7 +12,7 @@ import (
 func main() {
 	flags := flag.NewFlagSet("protoc-gen-kronos", flag.ContinueOnError)
 	flags.SetOutput(os.Stderr)
-	apiImport := flags.String("api_import", "", "public Go package import path")
+	apiImport := flags.String("api_import", "", "public Go import path (default: owner of internal/wire in go_package)")
 	unaryBindings := flags.Bool("unary_bindings", false, "generate bindings for the Kronos unary runtime")
 	options := protogen.Options{ParamFunc: flags.Set}
 	options.Run(func(plugin *protogen.Plugin) error {

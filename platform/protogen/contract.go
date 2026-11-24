@@ -13,7 +13,10 @@ import (
 	"google.golang.org/protobuf/types/gofeaturespb"
 )
 
-const contractFilename = "contract.kronos.pb.go"
+const (
+	contractFilename = "contract.kronos.pb.go"
+	wireSuffix       = "/internal/wire"
+)
 
 type contract struct {
 	aliases  []symbolAlias
@@ -35,12 +38,6 @@ type unaryService struct {
 }
 
 func generateContract(plugin *protogen.Plugin, apiImport string, unaryBindings bool) error {
-	packageName := path.Base(apiImport)
-	if !strings.Contains(apiImport, "/") || strings.HasPrefix(apiImport, "/") || strings.HasPrefix(apiImport, "../") ||
-		path.Clean(apiImport) != apiImport || strings.ContainsAny(apiImport, "\\\n\r\t ") ||
-		packageName == "_" || packageName == "main" || !token.IsIdentifier(packageName) {
-		return fmt.Errorf("invalid api_import %q", apiImport)
-	}
 	var inputs []*protogen.File
 	for _, file := range plugin.Files {
 		if file.Generate {
@@ -53,8 +50,23 @@ func generateContract(plugin *protogen.Plugin, apiImport string, unaryBindings b
 	slices.SortFunc(inputs, func(first, second *protogen.File) int {
 		return strings.Compare(first.Desc.Path(), second.Desc.Path())
 	})
+	if apiImport == "" {
+		first := inputs[0]
+		wireImport := string(first.GoImportPath)
+		owner, _, found := strings.Cut(wireImport+"/", wireSuffix+"/")
+		if !found || owner == "" {
+			return fmt.Errorf("%s: go_package %s must be under <public Go package>%s", first.Desc.Path(), wireImport, wireSuffix)
+		}
+		apiImport = owner
+	}
+	packageName := path.Base(apiImport)
+	if !strings.Contains(apiImport, "/") || strings.HasPrefix(apiImport, "/") || strings.HasPrefix(apiImport, "../") ||
+		path.Clean(apiImport) != apiImport || strings.ContainsAny(apiImport, "\\\n\r\t ") ||
+		packageName == "_" || packageName == "main" || !token.IsIdentifier(packageName) {
+		return fmt.Errorf("invalid api_import %q", apiImport)
+	}
 	plan := contract{names: make(map[string]protogen.GoImportPath), bindings: unaryBindings}
-	wireRoot := apiImport + "/internal/wire"
+	wireRoot := apiImport + wireSuffix
 	for _, file := range inputs {
 		wireImport := string(file.GoImportPath)
 		if wireImport != wireRoot && !strings.HasPrefix(wireImport, wireRoot+"/") {

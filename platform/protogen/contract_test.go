@@ -49,6 +49,56 @@ func TestGenerateContractFromMultipleFiles(t *testing.T) {
 	}
 }
 
+func TestInferPublicImportFromGeneratedFiles(t *testing.T) {
+	generate := func(apiImport string) *pluginpb.CodeGeneratorResponse {
+		t.Helper()
+		plugin, err := (protogen.Options{}).New(echoDescriptors())
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := generateContract(plugin, apiImport, false); err != nil {
+			t.Fatal(err)
+		}
+		return plugin.Response()
+	}
+	if implicit, explicit := generate(""), generate(publicEcho); !proto.Equal(implicit, explicit) {
+		t.Fatalf("inferred package generated %v, want %v", implicit, explicit)
+	}
+}
+
+func TestInferPublicImportRejectsConflictingWirePackages(t *testing.T) {
+	for _, test := range []struct {
+		name        string
+		firstImport string
+		otherImport string
+		wantError   string
+	}{
+		{"missing wire root", publicEcho + "/internal/wirehouse", "", "messages.proto: go_package"},
+		{"mixed owners", publicEcho + "/internal/wire", "example.com/services/other/internal/wire/v1", "other.proto: go_package"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			request := echoDescriptors()
+			request.ProtoFile[0].Options.GoPackage = proto.String(test.firstImport)
+			if test.otherImport != "" {
+				other := &descriptorpb.FileDescriptorProto{
+					Name: proto.String("other.proto"), Package: proto.String("other.v1"), Syntax: proto.String("proto3"),
+					Options: &descriptorpb.FileOptions{GoPackage: proto.String(test.otherImport)},
+				}
+				request.ProtoFile = append(request.ProtoFile, other)
+				request.FileToGenerate = append(request.FileToGenerate, other.GetName())
+			}
+			plugin, err := (protogen.Options{}).New(request)
+			if err != nil {
+				t.Fatal(err)
+			}
+			err = generateContract(plugin, "", false)
+			if err == nil || !strings.Contains(err.Error(), test.wantError) {
+				t.Fatalf("generation error = %v, want %q", err, test.wantError)
+			}
+		})
+	}
+}
+
 func TestRejectsIncompatibleContractInputs(t *testing.T) {
 	t.Run("public package outside the private owner", func(t *testing.T) {
 		plugin, err := (protogen.Options{}).New(echoDescriptors())
