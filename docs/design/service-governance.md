@@ -23,6 +23,8 @@
 
 ### 注册中心断连与进程崩溃验收
 
+首次发布故障使用同一个隔离 etcd。阻断发布者连接后，记录装配交给发布钩子的实际端口，确认两路直连可执行 Order。放行发布后，真实租约请求达到期限，应用返回启动失败，两个端口可重新绑定，直连 etcd 的观察方读不到该实例。这样分别验证先就绪、发布失败和启动资源回滚。[系统状态及责任](../architecture/rpc-system.md#生命周期与可发现状态)
+
 在 Linux 上启动真实 Order 进程和隔离 etcd。用测试进程持有的回环 TCP 中继中断 Order 和一组客户端到 etcd 的连接。直连 etcd 的观察端验证两个地址随租约消失，发现受阻的并发调用在各自预算内返回，已知地址的 RPC 仍可完成。恢复连接后核对续约失败、丢失租约及重新发布的事件。服务端与客户端的 etcd 连接各自退避并重连。验收让经历过发现失败的客户端继续按服务名调用，在同一个 22 秒恢复预算内取得两种协议的真实订单响应。[gRPC 连接退避](https://github.com/grpc/grpc/blob/master/doc/connection-backoff.md)
 
 用另一组服务名启动独立 Order 进程。确认发现调用后强制结束该测试进程，观察原记录保留到租约过期，然后核对两个地址均被删除、重新发现返回 `NO_INSTANCES`。测试中继、连接和子进程均由 Go 测试清理。[etcd 租约行为](https://etcd.io/docs/v3.6/dev-guide/interacting_v3/#grant-leases)
@@ -39,22 +41,24 @@
 
 ## 验收目标
 
-| 编号 | 通过条件 | 复查入口 |
-| --- | --- | --- |
-| T01 | Order 核心装配最多 30 行，实际运行 | [装配行数断言](../../examples/order/cmd/order/main_test.go) |
-| T02 | 官方 Registry 从真实 etcd 读到兼容端口 | [官方 SDK 与真实 etcd](../../test/interop/microv2/etcd_test.go) |
-| T03 | 官方 go-micro v2 Client 按名发现并完成 Order 调用 | [官方客户端到 Order](../../test/interop/microv2/etcd_test.go) |
-| T04 | Kronos MicroRPC 客户端发现并调用官方 go-micro v2 服务端 | [Order 到官方服务端](../../test/interop/microv2/etcd_test.go) |
-| T05 | 原生 gRPC 客户端成功调用同一服务 | [标准 gRPC 进程调用](../../test/interop/microv2/etcd_test.go) |
-| T06 | 两个监听按协议发布地址，并进入同一个业务实例 | [同一实例的两路业务](../../test/interop/microv2/drain_test.go) |
-| T07 | 多实例轮询、故障绕行、摘除、下一次调用成功及重试上限 | [多实例联调](../../test/interop/microv2/replicas_test.go) |
-| T08 | etcd 失联时续约失败、租约过期，恢复后新请求成功 | [断连与业务恢复](../../test/interop/microv2/resilience_test.go) |
-| T09 | 崩溃进程退出后，其两个地址由 etcd 移除 | [强制退出与过期](../../test/interop/microv2/resilience_test.go) |
-| T10 | 摘流在排空之前，关停在预算内返回 | [实际双协议关停](../../test/interop/microv2/drain_test.go) |
-| T11 | 双协议传播 Deadline 和 Cancel | [调用方期限与取消](../../test/interop/microv2/drain_test.go) |
-| T12 | 发布、监听、连接及后台查询各有释放证据 | [租约](../../infra/etcd/integration_test.go) · [监听与处理器](../../test/interop/microv2/drain_test.go) · [客户端](../../platform/kronos/discovery_test.go) |
-| T13 | 导入检查保护业务与底层 SDK 的边界 | [生产依赖规则](../../platform/verify/dependencies.go) |
-| T14 | CI 在隔离 Linux 环境执行可重复的 Go 验收 | [CI 工作流](../../.github/workflows/ci.yml) · [本地复现](go-verification.md#order-治理验收) |
+### 需求追踪
+
+| 编号 | 通过条件 | 接口与设计 | 实现责任 | 执行验证 |
+| --- | --- | --- | --- | --- |
+| T01 | Order 核心装配最多 30 行，实际运行 | [一元装配](unary-service-api.md) | [Order 命令](../../examples/order/cmd/order/main.go) | [装配行数断言](../../examples/order/cmd/order/main_test.go) · [进程调用](../../test/interop/microv2/etcd_test.go) |
+| T02 | 官方 Registry 从真实 etcd 读到兼容端口 | [协议前缀和租约](../adr/0009-discovery-protocols.md) | [etcd 发布](../../infra/etcd/publication.go) | [官方 Registry](../../test/interop/microv2/etcd_test.go) |
+| T03 | 官方 go-micro v2 Client 按服务名调用 Order | [入站协议](additional-listeners.md#go-micro-v2-兼容范围) | [服务端传输](../../platform/kronos/internal/transport/server.go) | [官方客户端到 Order](../../test/interop/microv2/etcd_test.go) |
+| T04 | Kronos MicroRPC 客户端发现并调用官方服务端 | [发现客户端](discovered-rpc-client.md) | [客户端传输](../../platform/kronos/internal/transport/client.go) | [Order 到官方服务端](../../test/interop/microv2/etcd_test.go) |
+| T05 | 原生 gRPC 客户端成功调用同一服务 | [方法名与消息类型](unary-service-api.md#协议与发现) | [标准 gRPC 入口](../../platform/kronos/internal/transport/server.go) | [标准 gRPC 进程调用](../../test/interop/microv2/etcd_test.go) |
+| T06 | 两个端口按协议发布并共享一个业务实例 | [调用链路](../architecture/rpc-system.md#端到端调用链路) | [业务注册与分协议监听](../../platform/kronos/app.go) | [同一实例的两路业务](../../test/interop/microv2/drain_test.go) |
+| T07 | 多实例轮询、故障绕行、摘除和有界重试 | [选择及幂等](discovered-rpc-client.md#实例失败及资源) | [快照与连接](../../platform/kronos/discovery.go) · [调用预算](../../platform/kronos/client.go) | [多实例联调](../../test/interop/microv2/replicas_test.go) |
+| T08 | etcd 失联、租约过期，恢复后新请求成功 | [故障场景](#注册中心断连与进程崩溃验收) | [续约与重新发布](../../infra/etcd/publication.go) | [断连和业务恢复](../../test/interop/microv2/resilience_test.go) |
+| T09 | 进程崩溃后其两个地址一并移除 | [租约契约](#etcd-适配契约) | [协议地址事务](../../infra/etcd/publication.go) | [强制退出与过期](../../test/interop/microv2/resilience_test.go) |
+| T10 | 就绪后发布，失败回滚，先摘流再排空 | [启动及退出](app-lifecycle.md) | [生命周期执行](../../framework/app/app.go) | [首次发布故障](../../test/interop/microv2/startup_test.go) · [双协议关停](../../test/interop/microv2/drain_test.go) |
+| T11 | 双协议传播 Deadline 和 Cancel | [预算与取消](discovered-rpc-client.md#调用者契约) | [客户端上下文](../../platform/kronos/client.go) · [旧协议超时](../../infra/microv2/handler.go) | [期限及取消](../../test/interop/microv2/drain_test.go) |
+| T12 | 发布、监听、连接及后台查询均可释放 | [资源所有权](../architecture/rpc-system.md#故障如何跨边界传播) | [租约](../../infra/etcd/publication.go) · [连接](../../platform/kronos/discovery.go) | [租约](../../infra/etcd/integration_test.go) · [监听](../../test/interop/microv2/drain_test.go) · [查询与连接](../../platform/kronos/discovery_test.go) |
+| T13 | 业务使用 Kronos 与 Protobuf 公开契约 | [依赖方向](../adr/0004-layer-and-module-boundaries.md#依赖方向与注入) | [导入规则](../../platform/verify/dependencies.go) | [生产依赖对照](../../platform/verify/dependencies_test.go) |
+| T14 | CI 在独立 Linux 环境复现原生 Go 验收 | [本地与 CI 命令](go-verification.md#order-治理验收) | [Linux 工作流](../../.github/workflows/ci.yml) | [近次完整验收](https://github.com/fangfengxiang/kronos/actions/runs/45306567631) |
 
 ## 实测记录
 
@@ -62,6 +66,7 @@
 - 同一 Linux 环境运行 `GOWORK=off go test -tags=interop,etcd_interop -count=1 -v ./test/interop/microv2`。v2.0.0 和 v2.9.1 的官方 Registry 都只读取兼容端口，两版官方旧客户端均能经真实 etcd 调用 Order。原有双向直连回归也通过。v2.0.0 的测试模块显式锁定其旧 etcd 访问链所用的 `github.com/coreos/pkg`。[发现对照](../../test/interop/microv2/etcd_test.go) · [夹具构建](../../test/interop/microv2/fixture_test.go)
 - macOS arm64 的 `go run ./platform/verify test` 和 `go run ./platform/verify deps` 通过。Linux arm64 的 `go run ./platform/verify deps` 和 `go run ./platform/verify proto` 通过。运行 `GOWORK=off GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go -C infra/etcd test -c` 生成 Windows 测试二进制。
 - `framework/app.RunWithReadyHook` 已通过 Linux 回环发布和有界关停测试。HTTP 请求证实发布时监听已经可用，撤销与传输共享一个截止时间，部分失败后释放端口。[生命周期实测](app-lifecycle.md#实测与复盘)
+- Go 1.25.0、Ubuntu 24.04 Linux amd64 与真实 etcd v3.6.16 运行 `GOWORK=off go test -tags=interop,etcd_interop -count=1 -v ./test/interop/microv2`。阻断首次发布连接后，发布钩子收到两个实际端口，两路直连先返回正确订单。发布到期返回启动错误，两个端口可以立即重绑，etcd 上两条记录均为空。完整互通和恢复用例同时通过。[启动回滚](../../test/interop/microv2/startup_test.go)
 - Order 进程的 21 行装配已运行。真实 etcd 上的原生 gRPC 与两版官方旧客户端通过服务名路径对照成功，`SIGTERM` 后两个地址注销。[统一服务端与实测](unary-service-api.md#实测)
 - Kronos 客户端通过真实 etcd 调用两版官方旧服务端，并在两种协议上验证多实例选择与绕行。生成的 Order 客户端及命令行入口使用同一公开 API。[发现客户端与实测](discovered-rpc-client.md#实测)
 - 真实 etcd 的隔离网络验收两个故障场景。Order 进程与 etcd 断连时，12 个并发发现调用在 350 毫秒的各自预算到期时返回，直连业务仍可调用。两个地址随租约过期。恢复连接后，日志记录续约失败、租约丢失、重新发布和恢复，客户端通过原服务名再次取得两种协议的订单响应。另一个 Order 进程被强制结束后，两种地址约 16 秒内消失，两种客户端均返回 `NO_INSTANCES`。[断连和崩溃测试](../../test/interop/microv2/resilience_test.go)

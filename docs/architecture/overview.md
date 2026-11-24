@@ -23,7 +23,7 @@ Kronos 面向全球应用，沿同一份 Protobuf 契约交付 gRPC、可选 HTT
 
 参考应用的 Agent 从一元和流式入口使用同一个用例。默认采用确定性模型替身。测试分别检查事件顺序、终态、取消、端到端语言处理和进程退出。首版范围、异常行为和测试分工见[首版落地设计](../design/first-vertical-slice.md)。
 
-Order 验证同一个 Protobuf 实现通过标准 gRPC 与 go-micro v2 两种独立监听服务，并以真实 etcd 完成地址发布、双向兼容调用、摘流和故障恢复。[服务治理](../design/service-governance.md)
+Order 验证同一个 Protobuf 实现通过标准 gRPC 与 go-micro v2 两种独立监听服务，并以真实 etcd 完成地址发布、双向兼容调用、摘流和故障恢复。[调用链路、状态与故障](rpc-system.md) · [服务治理](../design/service-governance.md)
 
 ## 代码分层
 
