@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"maps"
+	"slices"
 )
 
 // Message contains the text and the registered language of the resource used.
@@ -13,10 +14,11 @@ type Message struct {
 }
 
 // Catalog is a read-only snapshot of localized text keyed by message ID.
-// A catalog constructed with NewCatalog is safe for concurrent use.
+// A constructed catalog is safe for concurrent use.
 type Catalog struct {
 	defaultTag string
 	bundles    map[string]map[string]string
+	matcher    *Matcher
 }
 
 // NewCatalog copies bundles from the resource owner. Each bundle language must
@@ -46,7 +48,23 @@ func NewCatalog(m *Matcher, bundles map[string]map[string]string) (*Catalog, err
 	if _, exists := snapshot[m.defaultTag]; !exists {
 		return nil, fmt.Errorf("missing bundle for default language %q", m.defaultTag)
 	}
-	return &Catalog{defaultTag: m.defaultTag, bundles: snapshot}, nil
+	return &Catalog{defaultTag: m.defaultTag, bundles: snapshot, matcher: m}, nil
+}
+
+// NewCatalogFromBundles constructs a catalog whose supported languages are
+// the bundle keys. The default language must have a bundle.
+func NewCatalogFromBundles(defaultTag string, bundles map[string]map[string]string) (*Catalog, error) {
+	matcher, err := NewMatcher(defaultTag, slices.Sorted(maps.Keys(bundles))...)
+	if err != nil {
+		return nil, err
+	}
+	return NewCatalog(matcher, bundles)
+}
+
+// Match selects a language from the ordered preferences using the catalog's
+// matcher. It reports whether a preference matched.
+func (c *Catalog) Match(preferences ...string) (string, bool) {
+	return c.matcher.Match(preferences...)
 }
 
 // Lookup checks the selected registered tag, then the default bundle. A

@@ -7,6 +7,47 @@ import (
 	"github.com/fangfengxiang/kronos/core/locale"
 )
 
+func TestCatalogFromBundlesOwnsMatcherAndMessages(t *testing.T) {
+	bundles := map[string]map[string]string{
+		"en":      {"invalid": "Invalid request"},
+		"zh-Hans": {"invalid": "请求无效"},
+	}
+	catalog, err := locale.NewCatalogFromBundles("en", bundles)
+	if err != nil {
+		t.Fatal(err)
+	}
+	delete(bundles, "zh-Hans")
+	bundles["en"]["invalid"] = "changed"
+
+	tag, matched := catalog.Match("zh-CN")
+	message, found := catalog.Lookup(tag, "invalid")
+	if !matched || !found || message.Language != "zh-Hans" || message.Text != "请求无效" {
+		t.Fatalf("localized result = %q, %t, %v, %t", tag, matched, message, found)
+	}
+	tag, matched = catalog.Match("ja")
+	message, found = catalog.Lookup(tag, "invalid")
+	if matched || !found || message.Language != "en" || message.Text != "Invalid request" {
+		t.Fatalf("fallback result = %q, %t, %v, %t", tag, matched, message, found)
+	}
+	if _, err := locale.NewCatalogFromBundles("zh-Hans", bundles); err == nil {
+		t.Fatal("catalog accepted an absent default bundle")
+	}
+}
+
+func ExampleNewCatalogFromBundles() {
+	catalog, err := locale.NewCatalogFromBundles("en", map[string]map[string]string{
+		"en":      {"invalid": "Invalid request"},
+		"zh-Hans": {"invalid": "请求无效"},
+	})
+	if err != nil {
+		panic(err)
+	}
+	tag, _ := catalog.Match("zh-CN", "en")
+	message, _ := catalog.Lookup(tag, "invalid")
+	fmt.Println(message.Language, message.Text)
+	// Output: zh-Hans 请求无效
+}
+
 func TestNewCatalogRejectsInvalidConfiguration(t *testing.T) {
 	m, err := locale.NewMatcher("en", "en", "zh-Hant")
 	if err != nil {

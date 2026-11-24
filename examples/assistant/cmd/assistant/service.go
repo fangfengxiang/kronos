@@ -17,25 +17,20 @@ type textRunner interface {
 }
 
 type agentService struct {
-	runner    textRunner
-	languages *locale.Matcher
-	messages  *locale.Catalog
+	runner   textRunner
+	messages *locale.Catalog
 }
 
 func newAgentService(runner textRunner) (agentService, error) {
-	languages, err := locale.NewMatcher("en", "en", "zh-Hans")
-	if err != nil {
-		return agentService{}, err
-	}
 	invalidPrompt := assistant.ErrorReasonInvalidPrompt.String()
-	messages, err := locale.NewCatalog(languages, map[string]map[string]string{
+	messages, err := locale.NewCatalogFromBundles("en", map[string]map[string]string{
 		"en":      {invalidPrompt: "prompt must not be blank"},
 		"zh-Hans": {invalidPrompt: "提示词不能为空"},
 	})
 	if err != nil {
 		return agentService{}, err
 	}
-	return agentService{runner: runner, languages: languages, messages: messages}, nil
+	return agentService{runner: runner, messages: messages}, nil
 }
 
 func (service agentService) Run(ctx context.Context, request *assistant.RunRequest) (*assistant.RunResponse, error) {
@@ -63,7 +58,7 @@ func (service agentService) validatePrompt(ctx context.Context, prompt string) e
 		return nil
 	}
 	reason := assistant.ErrorReasonInvalidPrompt.String()
-	tag, _ := localization.Negotiate(ctx, service.languages)
+	tag, _ := localization.Negotiate(ctx, service.messages)
 	message, _ := service.messages.Lookup(tag, reason)
 	return &rpc.Error{Code: rpc.InvalidArgument, Reason: reason, Message: message.Text}
 }

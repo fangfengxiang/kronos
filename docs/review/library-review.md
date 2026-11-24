@@ -28,7 +28,7 @@
 
 | 模块与决策 | 真实调用入口 | 最小可执行示例 | 常用路径、所有权与边界 |
 | --- | --- | --- | --- |
-| `core/locale` B | [Assistant 构建语言匹配器与文案目录](../../examples/assistant/cmd/assistant/service.go#L26-L38) | [文案回退](../../core/locale/catalog_test.go#L80) | 创建 Matcher 和文案 Catalog，由服务入口持有。匹配回退和文案快照已覆盖，常用资源装配继续复审。 |
+| `core/locale` B | [Assistant 一次装配文案与匹配](../../examples/assistant/cmd/assistant/service.go) | [从资源键构建并匹配](../../core/locale/catalog_test.go) | 原先同一语言维护在支持列表及资源表中。普通资源目录改用资源键定义支持集合。目录持有只读快照，既有独立匹配和查找接口继续可用。[契约与实测](../design/core-localization.md#消息资源) |
 | `core/runtime` A | [后台文档任务](../../examples/runtimejob/main.go) | [观察 panic 终态](../../core/runtime/example_test.go) | 通过 Go 启动任务并观察终态。任务持有自己的取消和等待。覆盖 panic、Goexit 和观察回调隔离。 |
 | `core/timezone` A | [计算日报日期](../../examples/reportdate/main.go) | [按 IANA 时区换算日期](../../core/timezone/timezone_test.go#L76) | 按 IANA 标识加载时区，由调用方选择业务日期语义。覆盖无效时区、夏令时及跨日。 |
 | `framework/app` A | [Assistant 监听与应用生命周期](../../examples/assistant/cmd/assistant/main.go#L123-L182) | [监听就绪与关停](../../framework/app/example_test.go) | 平台和高级调用方提供绑定，App 持有监听。绑定失败回滚，退出在同一预算内释放已发布状态与在途流。 |
