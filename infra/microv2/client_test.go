@@ -7,11 +7,41 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
 	"time"
 )
+
+func TestClientSendsExactRequestIDHeader(t *testing.T) {
+	const endpoint = "Assistant.Run"
+	received := make(chan []string, 2)
+	legacy := NewHandler("assistant", map[string]Unary{
+		endpoint: func(_ context.Context, payload []byte) ([]byte, error) { return payload, nil },
+	})
+	server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+		received <- request.Header.Values("X-Request-ID")
+		legacy.ServeHTTP(response, request)
+	}))
+	defer server.Close()
+	client, err := NewClient(server.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer client.CloseIdleConnections()
+	ctx, cancel := context.WithTimeout(t.Context(), time.Second)
+	defer cancel()
+	if _, err := client.CallWithRequestID(ctx, "assistant", endpoint, nil, "request-01", RequestMetadata{}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := client.Call(ctx, "assistant", endpoint, nil); err != nil {
+		t.Fatal(err)
+	}
+	if first, second := <-received, <-received; !slices.Equal(first, []string{"request-01"}) || len(second) != 0 {
+		t.Fatalf("request ID headers = %v and %v", first, second)
+	}
+}
 
 func TestClientSendsLegacyEnvelopeAndDeadline(t *testing.T) {
 	const endpoint = "Assistant.Run"

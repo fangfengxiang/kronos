@@ -62,6 +62,11 @@ type RequestMetadata struct {
 
 // CallWithMetadata sends a unary request with its caller metadata.
 func (client *Client) CallWithMetadata(ctx context.Context, service, endpoint string, payload []byte, metadata RequestMetadata) ([]byte, error) {
+	return client.CallWithRequestID(ctx, service, endpoint, payload, "", metadata)
+}
+
+// CallWithRequestID sends a unary request with a correlation ID and metadata.
+func (client *Client) CallWithRequestID(ctx context.Context, service, endpoint string, payload []byte, requestID string, metadata RequestMetadata) ([]byte, error) {
 	sequence := client.sequence.Add(1)
 	frame := encodeFrames(envelope{method: endpoint, sequence: sequence}, payload, nil, maxRequestBytes)
 	if frame == nil {
@@ -77,6 +82,9 @@ func (client *Client) CallWithMetadata(ctx context.Context, service, endpoint st
 	request.Header.Set("Micro-Service", service)
 	request.Header.Set("Micro-Method", endpoint)
 	request.Header.Set("Micro-Endpoint", endpoint)
+	if requestID != "" {
+		request.Header.Set("X-Request-ID", requestID)
+	}
 	for _, preference := range metadata.AcceptLanguage {
 		request.Header.Add("Accept-Language", preference)
 	}
