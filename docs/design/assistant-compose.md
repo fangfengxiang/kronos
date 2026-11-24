@@ -11,6 +11,8 @@
 
 ## 边界与取舍
 
+- Assistant 公开绑定编译需要统一应用模块。构建上下文允许 `platform/kronos`，构建阶段复制该模块，使关闭工作区的本地依赖替换在镜像内可解析。运行阶段继续只复制已构建的二进制。
+
 - 参考服务使用多阶段构建，并用 `exec` 将应用提升为容器主进程。Kronos 沿用两阶段交付，Docker 直接执行 Go 二进制。构建阶段使用官方 Go 镜像，运行阶段使用 Alpine 自带的 `wget` 执行容器探针，保留同一个 HTTP 就绪契约。[Docker 多阶段与入口](https://docs.docker.com/reference/dockerfile/#entrypoint) · [Alpine 官方镜像](https://hub.docker.com/_/alpine)
 - Compose 管理配置、端口、健康状态及停止信号。测试以 Go 客户端和标准库直接验证公开入口。框架继续负责监听取得、就绪和业务排空。[Compose 服务定义](https://docs.docker.com/reference/compose-file/services/) · [Compose 配置文件](https://docs.docker.com/reference/compose-file/configs/) · [Compose 等待就绪](https://docs.docker.com/reference/cli/docker/compose/up/)
 
@@ -21,6 +23,8 @@
 - 停止运行容器，确认退出码为零、日志包含正常退出事件，宿主机已停止接流。诊断在清理测试项目之前采集。
 
 ## 实测与复盘
+
+- 统一流式绑定引入后，按原镜像清单构建会在 `go build` 报本地替换路径缺失。同步构建上下文和 Dockerfile 后，用 Go 1.25.0 运行 `GOWORK=off go test -tags=e2e -count=1 -v ./test/e2e/assistant` 通过。Linux 容器完成四入口、探针、配置缺失、监听冲突及正常关停验收。
 
 - 使用 Go 1.25.0、Docker Compose v5.7.0 在 Linux arm64 引擎中实际构建和启动镜像。`GOWORK=off go test -race -tags=e2e -count=2 -v ./test/e2e/assistant` 两轮通过。`/livez` 和 `/readyz` 正常，三个一元入口返回中文响应和稳定错误码，SSE 两次增量合并为中文正文并有唯一完成事件。[Go 容器测试](../../test/e2e/assistant/compose_test.go)
 - 配置缺失和第二个监听端口冲突均以退出码 1 结束，并输出带原因的 `app_failed`。Compose 停止后容器以退出码 0 结束，出现 `app_stopped`，四个宿主端口停止接流。复盘补上端口冲突，覆盖容器内取得首个监听后出现的启动失败。在途请求排空和超时取消由应用模块的进程及真实传输测试验证。[关停验收](app-lifecycle.md#实测与复盘)

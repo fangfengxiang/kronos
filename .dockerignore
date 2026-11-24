@@ -7,6 +7,9 @@
 !framework/**
 !infra/
 !infra/**
+!platform/
+!platform/kronos/
+!platform/kronos/**
 !examples/
 !examples/assistant/
 !examples/assistant/**

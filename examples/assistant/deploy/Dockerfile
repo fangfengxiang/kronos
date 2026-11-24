@@ -6,6 +6,7 @@ COPY go.mod go.sum ./
 COPY core/ core/
 COPY framework/ framework/
 COPY infra/ infra/
+COPY platform/kronos/ platform/kronos/
 COPY examples/assistant/ examples/assistant/
 COPY examples/textbackend/ examples/textbackend/
 RUN go build -o /out/assistant ./examples/assistant/cmd/assistant
