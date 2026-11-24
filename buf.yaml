@@ -11,3 +11,6 @@ lint:
   ignore_only:
     SERVICE_SUFFIX:
       - examples/assistant/api/kronos/assistant/v1/assistant.proto
+breaking:
+  use:
+    - FILE

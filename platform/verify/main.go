@@ -21,12 +21,19 @@ func main() {
 }
 
 func run(ctx context.Context, arguments []string) error {
-	if len(arguments) != 1 {
-		return errors.New("usage: go run ./platform/verify {test|deps|proto|generate}")
+	const usage = "usage: go run ./platform/verify {test|deps|proto|generate|breaking <baseline>}"
+	if len(arguments) == 0 {
+		return errors.New(usage)
 	}
 	repository, err := os.Getwd()
 	if err != nil {
 		return err
+	}
+	if arguments[0] == "breaking" && len(arguments) == 2 {
+		return checkBreaking(ctx, repository, arguments[1])
+	}
+	if len(arguments) != 1 || arguments[0] == "breaking" {
+		return errors.New(usage)
 	}
 	switch arguments[0] {
 	case "test":
