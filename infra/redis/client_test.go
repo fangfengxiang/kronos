@@ -41,6 +41,23 @@ func TestConfigurationAndExpiryErrors(t *testing.T) {
 }
 
 func TestGetHonorsDeadlineWithUnresponsiveServer(t *testing.T) {
+	for _, scenario := range []struct {
+		name        string
+		callTimeout time.Duration
+		readTimeout time.Duration
+		want        error
+	}{
+		{name: "caller deadline", callTimeout: 120 * time.Millisecond, readTimeout: 2 * time.Second, want: context.DeadlineExceeded},
+		{name: "redis read timeout", callTimeout: 2 * time.Second, readTimeout: 120 * time.Millisecond, want: redis.ErrUnavailable},
+	} {
+		t.Run(scenario.name, func(t *testing.T) {
+			assertUnresponsiveGet(t, scenario.callTimeout, scenario.readTimeout, scenario.want)
+		})
+	}
+}
+
+func assertUnresponsiveGet(t *testing.T, callTimeout, readTimeout time.Duration, want error) {
+	t.Helper()
 	listener, err := net.ListenTCP("tcp4", &net.TCPAddr{IP: net.IPv4(127, 0, 0, 1)})
 	if err != nil {
 		t.Fatal(err)
@@ -49,12 +66,12 @@ func TestGetHonorsDeadlineWithUnresponsiveServer(t *testing.T) {
 	if err := listener.SetDeadline(time.Now().Add(time.Second)); err != nil {
 		t.Fatal(err)
 	}
-	client, err := redis.New(redis.Config{URL: "redis://" + listener.Addr().String() + "?dial_timeout=2s&read_timeout=2s"})
+	client, err := redis.New(redis.Config{URL: "redis://" + listener.Addr().String() + "?dial_timeout=2s&read_timeout=" + readTimeout.String()})
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer client.Close()
-	ctx, cancel := context.WithTimeout(t.Context(), 120*time.Millisecond)
+	ctx, cancel := context.WithTimeout(t.Context(), callTimeout)
 	defer cancel()
 	result := make(chan error, 1)
 	go func() {
@@ -68,11 +85,11 @@ func TestGetHonorsDeadlineWithUnresponsiveServer(t *testing.T) {
 	defer connection.Close()
 	select {
 	case err := <-result:
-		if !errors.Is(err, context.DeadlineExceeded) {
-			t.Fatalf("unresponsive server returned %v", err)
+		if !errors.Is(err, want) {
+			t.Fatalf("unresponsive server returned %v, want %v", err, want)
 		}
 	case <-time.After(800 * time.Millisecond):
-		t.Fatal("Redis request did not return within the caller's deadline")
+		t.Fatal("Redis request did not return within its allowed budget")
 	}
 }
 

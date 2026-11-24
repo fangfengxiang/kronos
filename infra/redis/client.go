@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"net/url"
+	"os"
 	"time"
 
 	redisdriver "github.com/redis/go-redis/v9"
@@ -107,6 +108,10 @@ func commandError(ctx context.Context, err error) error {
 	}
 	if contextError := ctx.Err(); contextError != nil {
 		return contextError
+	}
+	// The socket can reach the caller's deadline before the context timer runs.
+	if deadline, hasDeadline := ctx.Deadline(); hasDeadline && errors.Is(err, os.ErrDeadlineExceeded) && !time.Now().Before(deadline) {
+		return context.DeadlineExceeded
 	}
 	if errors.Is(err, redisdriver.ErrClosed) {
 		return ErrClosed
