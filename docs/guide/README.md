@@ -131,7 +131,8 @@ go get "github.com/fangfengxiang/kronos/platform/kronos@$kronos_revision" \
 
 ```sh
 go work init . "$kronos_source/platform/protogen" "$kronos_source/platform/kronos" \
-  "$kronos_source/framework/app" "$kronos_source/framework/localization" "$kronos_source/framework/rpc" \
+  "$kronos_source/framework/app" "$kronos_source/framework/localization" \
+  "$kronos_source/framework/request" "$kronos_source/framework/rpc" \
   "$kronos_source/infra/etcd" "$kronos_source/infra/microv2"
 ```
 
@@ -161,7 +162,7 @@ legacyClient, err := assistant.NewRPCClient(ctx, "127.0.0.1:9091", time.Second,
 
 ### 关联请求
 
-服务方法通过 `request.ID(ctx)` 读取请求标识。将同一个上下文传给 Assistant 的 HTTP 或 gRPC 客户端可继续传播该标识，调用方可用 `request.WithID` 设置自己的标识。Assistant 的 MicroRPC 入口也校验实际收到的标识，缺少合法标识时为本次调用生成一个。[可执行的 Go 示例](../../framework/request/example_test.go) · [请求元数据契约](../design/request-metadata.md)
+服务方法通过 `request.ID(ctx)` 读取请求标识。将同一个上下文传给 Kronos 生成的一元客户端，或传给 Assistant 的 HTTP、gRPC 客户端，可继续传播该标识。调用方可用 `request.WithID` 设置自己的标识。统一一元入口和 Assistant 的 MicroRPC 服务入口都会校验收到的标识，缺少合法标识时为本次调用生成一个。[可执行的 Go 示例](../../framework/request/example_test.go) · [请求元数据契约](../design/request-metadata.md)
 
 参考服务的绑定将业务 panic 转换为现有的服务错误，并记录请求标识、类型和栈。自定义绑定可用 `rpc.RecoverUnary` 和 `rpc.RecoverStream` 包装业务处理函数，再沿本服务的错误映射返回。[恢复设计与实测](../design/rpc-handler-recovery.md) · [可执行的 Go 示例](../../framework/rpc/recovery_test.go)
 

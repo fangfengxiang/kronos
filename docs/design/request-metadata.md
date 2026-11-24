@@ -17,9 +17,9 @@ Assistant 的 MicroRPC 服务复用入站元数据读取，实际收到的合法
 
 ## 统一一元入口的请求关联
 
-复审 `91db47a` 时，将调用方设置的请求 ID 发给真实 etcd 发现的 Order，并由测试业务从上下文回显。标准 gRPC 和 MicroRPC 均返回空标识。统一一元入口需要复用 `framework/request` 的既有规则，在服务绑定处接收精确的 `x-request-id`，在客户端传输处发送上下文中的合法值。缺失、重复及不符合规则的入站值由已有校验生成标识。业务方法、日志和下游调用使用同一个标准上下文。
+复审 `91db47a` 时，将调用方设置的请求 ID 发给真实 etcd 发现的 Order，并由测试业务从上下文回显。标准 gRPC 和 MicroRPC 均返回空标识。统一一元入口复用 `framework/request` 的既有规则，在服务绑定处接收精确的 `x-request-id`，在客户端传输处发送上下文中的合法值。缺失、重复及不符合规则的入站值由已有校验生成标识。业务方法、日志和下游调用使用同一个标准上下文。
 
-MicroRPC 的底层适配器只负责开放此 HTTP 字段，校验和生成继续留在框架边界。发布时先提供兼容的适配器版本，再更新平台运行时所引用的版本。双协议实测需要确认显式透传、缺省生成、稳定错误日志和已有语言及 Trace 行为。[Go RPC 元数据](https://grpc.io/docs/guides/metadata/) · [请求 ID 字段](https://www.envoyproxy.io/docs/envoy/latest/configuration/http/http_conn_man/headers#x-request-id)
+MicroRPC 的底层适配器负责开放此 HTTP 字段，校验和生成继续留在框架边界。平台运行时引用已公开的 MicroRPC 版本。双协议验收确认显式透传、缺省生成、稳定错误日志和已有语言及 Trace 行为。[Go RPC 元数据](https://grpc.io/docs/guides/metadata/) · [请求 ID 字段](https://www.envoyproxy.io/docs/envoy/latest/configuration/http/http_conn_man/headers#x-request-id)
 
 ## 通过条件
 
@@ -33,3 +33,4 @@ MicroRPC 的底层适配器只负责开放此 HTTP 字段，校验和生成继�
 - 同一个 Go 对照测试从相同请求头初始化 Kratos 前缀中间件与 Kronos 精确键绑定。Kratos 传播 `x-request-id` 和 `x-request-id-secondary`。Kronos 只传播 `x-request-id`，出站语言使用调用方显式设置的值。复核后将入站提取放在服务方法入口，流的多次收发共享同一份请求上下文。[对照测试](../../examples/assistant/internal/binding/request_test.go)
 - 在 macOS arm64 关闭工作区运行模块与 Assistant 的 `go test -race -count=1`，以及两者的 `go vet`、`go mod tidy -diff`，均通过。模块内的 Go `ExampleWithID` 随测试执行。[可执行示例](../../framework/request/example_test.go)
 - MicroRPC 暴露 `CallWithRequestID`，现有 `RequestMetadata` 类型和调用签名保留。Go 1.25.0、Ubuntu 24.04 Linux arm64 的适配模块通过十轮，官方 go-micro v2.0.0 与 v2.9.1 双向用例通过。macOS arm64 竞态回归五轮通过。测试核对显式 ID 作为精确的 HTTP 头发送，默认调用保留现有头部行为。[兼容层测试](../../infra/microv2/client_test.go)
+- Go 1.25.0、Ubuntu 24.04 Linux amd64 和真实 etcd v3.6.16 执行 `GOWORK=off go test -tags=etcd_interop -count=5 -run '^TestOrder(PropagatesRequestIDAcrossBothProtocols|CorrelatesSignalsAcrossBothProtocols)$' -v ./test/interop/microv2`。两种协议均保持显式 ID，缺失或无效的调用生成新的合法标识，两侧可用同一 ID 对照错误日志及 Trace。完整的 `-tags=interop,etcd_interop` 治理、官方旧端和恢复套件，以及 macOS arm64 的全仓竞态与依赖检查均通过。[业务上下文回显](../../test/interop/microv2/request_metadata_test.go) · [日志与 Trace](../../test/interop/microv2/trace_test.go)

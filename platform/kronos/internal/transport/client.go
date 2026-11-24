@@ -7,6 +7,7 @@ import (
 	"net/url"
 
 	"github.com/fangfengxiang/kronos/framework/localization"
+	"github.com/fangfengxiang/kronos/framework/request"
 	"github.com/fangfengxiang/kronos/framework/rpc"
 	"github.com/fangfengxiang/kronos/infra/microv2"
 	kratoserrors "github.com/go-kratos/kratos/v3/errors"
@@ -62,7 +63,8 @@ func Dial(ctx context.Context, protocol rpc.Protocol, address string) (Client, e
 
 func withGRPCMetadata(ctx context.Context, op Operation) context.Context {
 	preferences := localization.AcceptLanguage(ctx)
-	if op.TraceParent == "" && len(preferences) == 0 {
+	requestID := request.ID(ctx)
+	if op.TraceParent == "" && len(preferences) == 0 && requestID == "" {
 		return ctx
 	}
 	outgoing, _ := metadata.FromOutgoingContext(ctx)
@@ -71,6 +73,9 @@ func withGRPCMetadata(ctx context.Context, op Operation) context.Context {
 	}
 	if len(preferences) != 0 {
 		outgoing.Set(localization.AcceptLanguageHeader, preferences...)
+	}
+	if requestID != "" {
+		outgoing.Set(request.IDHeader, requestID)
 	}
 	if op.TraceParent != "" {
 		outgoing.Set("traceparent", op.TraceParent)
@@ -93,12 +98,12 @@ func dialMicro(address string) (Client, error) {
 			connection.CloseIdleConnections()
 			return nil
 		},
-		Invoke: func(ctx context.Context, op Operation, request, response proto.Message) (bool, error) {
-			payload, err := proto.Marshal(request)
+		Invoke: func(ctx context.Context, op Operation, input, response proto.Message) (bool, error) {
+			payload, err := proto.Marshal(input)
 			if err != nil {
 				return false, err
 			}
-			decoded, err := connection.CallWithMetadata(ctx, op.MicroName, op.MicroMethod, payload, microv2.RequestMetadata{
+			decoded, err := connection.CallWithRequestID(ctx, op.MicroName, op.MicroMethod, payload, request.ID(ctx), microv2.RequestMetadata{
 				TraceParent: op.TraceParent, TraceState: op.TraceState, AcceptLanguage: localization.AcceptLanguage(ctx),
 			})
 			if err == nil {

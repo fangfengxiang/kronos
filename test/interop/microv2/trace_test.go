@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"github.com/fangfengxiang/kronos/examples/order"
+	"github.com/fangfengxiang/kronos/framework/request"
 	"github.com/fangfengxiang/kronos/infra/oteltrace"
 	"github.com/fangfengxiang/kronos/infra/prometheus"
 	"github.com/fangfengxiang/kronos/platform/kronos"
@@ -39,6 +40,8 @@ func TestOrderCorrelatesSignalsAcrossBothProtocols(t *testing.T) {
 		"KRONOS_ORDER_DIAGNOSTICS="+diagnostics, "KRONOS_ORDER_TRACE_ENDPOINT="+traceEndpoint)
 	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
 	defer cancel()
+	const requestID = "orders-trace-request"
+	ctx = request.WithID(ctx, requestID)
 	waitForOrderAddresses(t, ctx, registry, serviceName, process)
 
 	tracer, err := oteltrace.New(ctx, oteltrace.Config{ServiceName: "order-test-client", Endpoint: traceEndpoint})
@@ -106,7 +109,15 @@ func TestOrderCorrelatesSignalsAcrossBothProtocols(t *testing.T) {
 		}
 	}
 	maps.Copy(clientLogs, missingLogs)
-	captured.assertSignals(t, clientLogs, loadRPCTraceLogs(t, process.logPath))
+	serverLogs := loadRPCTraceLogs(t, process.logPath)
+	for _, entries := range []map[string]rpcTraceLog{clientLogs, serverLogs} {
+		for _, entry := range entries {
+			if entry.RequestID != requestID {
+				t.Errorf("log %s on %s carried request ID %q", entry.Event, entry.Protocol, entry.RequestID)
+			}
+		}
+	}
+	captured.assertSignals(t, clientLogs, serverLogs)
 }
 
 type recordedOrderTraces struct {
@@ -138,13 +149,14 @@ func orderTraceCollector(t *testing.T) (string, *recordedOrderTraces) {
 }
 
 type rpcTraceLog struct {
-	TraceID  string `json:"trace_id"`
-	SpanID   string `json:"span_id"`
-	Event    string
-	Protocol string
-	Status   string
-	Reason   string
-	Attempts *int
+	TraceID   string `json:"trace_id"`
+	SpanID    string `json:"span_id"`
+	RequestID string `json:"request_id"`
+	Event     string
+	Protocol  string
+	Status    string
+	Reason    string
+	Attempts  *int
 }
 
 func loadRPCTraceLogs(t *testing.T, path string) map[string]rpcTraceLog {

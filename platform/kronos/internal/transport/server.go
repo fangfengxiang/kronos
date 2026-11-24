@@ -9,6 +9,7 @@ import (
 
 	"github.com/fangfengxiang/kronos/framework/app"
 	"github.com/fangfengxiang/kronos/framework/localization"
+	"github.com/fangfengxiang/kronos/framework/request"
 	"github.com/fangfengxiang/kronos/framework/rpc"
 	"github.com/fangfengxiang/kronos/infra/microv2"
 	kratoserrors "github.com/go-kratos/kratos/v3/errors"
@@ -62,7 +63,7 @@ func grpcMethod(serviceName string, method Method) grpc.MethodDesc {
 			return nil, err
 		}
 		invoke := func(ctx context.Context, request any) (any, error) {
-			response, err := method.Invoke(withIncomingLanguage(ctx), request.(proto.Message))
+			response, err := method.Invoke(withIncomingRequest(ctx), request.(proto.Message))
 			if err == nil {
 				return response, nil
 			}
@@ -90,7 +91,7 @@ func MicroRPCServer(listener net.Listener, serviceName string, services []Servic
 				if err := proto.Unmarshal(payload, request); err != nil {
 					return nil, &microv2.Error{Code: http.StatusBadRequest, Reason: "INVALID_REQUEST", Message: "invalid Protobuf request"}
 				}
-				response, err := method.Invoke(withIncomingLanguage(ctx), request)
+				response, err := method.Invoke(withIncomingRequest(ctx), request)
 				if err == nil {
 					return proto.Marshal(response)
 				}
@@ -114,12 +115,13 @@ func newHTTPServer(listener net.Listener) *kratoshttp.Server {
 	return kratoshttp.NewServer(kratoshttp.Listener(listener), kratoshttp.Timeout(0))
 }
 
-func withIncomingLanguage(ctx context.Context) context.Context {
-	var preferences []string
+func withIncomingRequest(ctx context.Context) context.Context {
 	if server, ok := kratostransport.FromServerContext(ctx); ok {
-		preferences = server.RequestHeader().Values(localization.AcceptLanguageHeader)
+		headers := server.RequestHeader()
+		ctx = request.WithIncomingID(ctx, headers.Values(request.IDHeader)...)
+		return localization.WithIncomingAcceptLanguage(ctx, headers.Values(localization.AcceptLanguageHeader)...)
 	}
-	return localization.WithIncomingAcceptLanguage(ctx, preferences...)
+	return localization.WithIncomingAcceptLanguage(request.WithIncomingID(ctx))
 }
 
 func failure(err error) (int, string, string) {

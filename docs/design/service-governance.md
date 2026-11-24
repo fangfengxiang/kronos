@@ -71,6 +71,7 @@ Order 的服务端和客户端共用证书加载。部署通过 `KRONOS_ETCD_CA_
 | T18 | 新服务可从 Proto 生成、构建并经双协议调用 | [一元服务脚手架](service-scaffold.md) | [脚手架命令](../../platform/verify/scaffold.go) · [生成入口](../../platform/verify/protocol.go) | [全新服务经真实 etcd](../../platform/verify/scaffold_test.go) |
 | T19 | 实例摘除和客户端释放可从运行日志核对，剩余实例继续成功 | [实例与传输资源状态](discovered-rpc-client.md#实例失败及资源) | [快照计数](../../platform/kronos/discovery.go) · [客户端关闭](../../platform/kronos/client.go) | [真实 etcd 双实例变更](../../test/interop/microv2/replicas_test.go) |
 | T20 | 服务端和调用方可经双向 TLS 使用 etcd，证书错误时拒绝查询 | [私有 CA 与客户端证书](#私有-ca-与客户端证书) | [连接配置](../../infra/etcd/registry.go) · [Order 启动配置](../../examples/order/internal/etcdconfig/registry.go) | [真实双向 TLS](../../test/interop/microv2/etcd_tls_test.go) |
+| T21 | 两种协议传递和校验请求 ID，调用日志关联同一个请求 | [一元入口元数据](request-metadata.md#统一一元入口的请求关联) | [客户端传递](../../platform/kronos/internal/transport/client.go) · [服务端提取](../../platform/kronos/internal/transport/server.go) | [双协议显式与缺省](../../test/interop/microv2/request_metadata_test.go) · [日志与 Trace](../../test/interop/microv2/trace_test.go) |
 
 ## 实测记录
 

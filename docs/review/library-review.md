@@ -34,7 +34,7 @@
 | `framework/app` A | [Assistant 监听与应用生命周期](../../examples/assistant/cmd/assistant/main.go#L123-L182) | [监听就绪与关停](../../framework/app/example_test.go) | 平台和高级调用方提供绑定，App 持有监听。绑定失败回滚，退出在同一预算内释放已发布状态与在途流。 |
 | `framework/localization` B | [Assistant 请求绑定](../../examples/assistant/internal/binding/request.go) · [Order 双协议调用](../../test/interop/microv2/localization_test.go) | [按入站偏好协商](../../framework/localization/example_test.go) | 服务提供语言匹配器，框架保留入站与出站偏好。之前统一一元入口缺少偏好映射，现由绑定自动传播显式出站偏好。已有 Assistant 入口使用相同权重和回退逻辑。 |
 | `framework/log` A | [Assistant 创建 JSON 日志](../../examples/assistant/cmd/assistant/main.go#L28-L29) | [JSON 日志与请求 ID](../../framework/log/example_test.go#L12) | 用 NewJSON 接收输出流与级别，入口持有流。请求上下文附加结构化字段。 |
-| `framework/request` A | [Assistant 接收请求 ID](../../examples/assistant/internal/binding/request.go#L16-L22) | [上下文请求 ID](../../framework/request/example_test.go#L10) | 传输入口接收并验证请求 ID，下游从上下文读取。无效值替换由入口完成。 |
+| `framework/request` A | [Assistant 接收请求 ID](../../examples/assistant/internal/binding/request.go#L16-L22) · [Order 双协议调用](../../test/interop/microv2/request_metadata_test.go) | [上下文请求 ID](../../framework/request/example_test.go#L10) | 统一一元入口在两种传输接收并验证请求 ID，生成客户端发送上下文中的合法 ID。日志使用同一次调用的上下文。[请求元数据](../design/request-metadata.md) |
 | `framework/rpc` B | [Assistant 选择 gRPC 或旧协议](../../examples/assistant/assistant.go#L96-L110) | [协议选项](../../framework/rpc/example_test.go#L9) · [一元恢复](../../framework/rpc/recovery_test.go#L85) | 应用持有客户端并关闭，调用方提供上下文。新一元业务可用生成客户端，已有多传输调用保留底层入口。 |
 | `infra/aliyunoss` B | [TextBackend 读取 OSS 文本配置](../../examples/textbackend/cmd/textbackend/oss_profile.go#L21-L42) | [预签名 GET](../../infra/aliyunoss/bucket_test.go#L308) | 装配入口创建 Bucket 并清理空闲连接，读取方关闭 Open 返回的流。HTTP 夹具覆盖签名、取流和取消。 |
 | `infra/blades` B | [Assistant 装配模型](../../examples/assistant/cmd/assistant/main.go#L100) · [业务运行与流](../../examples/assistant/cmd/assistant/service.go#L40-L62) | [注入模型并生成文本](../../infra/blades/example_test.go) | 应用注入模型，Runner 执行 Run 或 Stream。调用方控制上下文，流接收错误触发取消。 |
@@ -80,6 +80,8 @@ Go 1.25.0 在 Ubuntu 24.04 Linux arm64 运行 `GOWORK=off go -C <模块目录> t
 - `infra/runtimeprofile` 默认关闭。部署用一个回环地址启用，框架接手绑定与生命周期。对照 Go pprof，核对两种快照、路由隔离、非法监听回滚，以及 Assistant 重载前后的状态。[诊断装配和 Linux 实测](../design/runtime-profiles.md)
 
 在源码 `008ced4` 上使用 Go 1.25.0 运行 `go run ./platform/verify test`、`go run ./platform/verify deps`、`go run ./platform/verify proto` 和 `go run ./platform/verify breaking 40910b7`。根模块与 24 个独立模块的竞态、分层、重生成和兼容均通过。Ubuntu 24.04 Linux arm64 使用官方 Consul 2.1.0 复跑 `GOWORK=off go test -tags=consul_integration -count=1 -v ./test/integration/consul`，Order、TextBackend 和 Assistant 三个入口通过。逐库矩阵与工作区一一对应，治理矩阵覆盖 T01 至 T20。Windows amd64 交叉构建了 Order 的服务端和客户端，双向 TLS 运行证据来自 Linux。[治理及发布态验收](../design/go-verification.md)
+
+复审 `91db47a` 发现标准 gRPC 和 MicroRPC 的统一一元入口均未传递请求 ID。补充治理项 T21 后，真实 etcd 上五轮双协议通过，确认显式透传、缺省生成和错误日志关联。修复保留 `framework/request` 的原有校验与接口，由平台承担读写元数据。[缺口与回归](../design/request-metadata.md#统一一元入口的请求关联)
 
 ## 初审的 Shell 测试核查与实测
 
