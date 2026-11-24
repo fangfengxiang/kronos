@@ -118,11 +118,7 @@ func TestAssistantThroughKronosPublicAPI(t *testing.T) {
 			if err != nil || withID.GetText() == "" {
 				t.Fatalf("run with a caller ID = (%v, %v)", withID, err)
 			}
-			if transport.name == "go-micro v2" {
-				if withID.GetText() == callerID || withID.GetText() == generated.GetText() {
-					t.Fatalf("legacy call received a nonlocal ID %q", withID.GetText())
-				}
-			} else if withID.GetText() != callerID {
+			if withID.GetText() != callerID || generated.GetText() == callerID {
 				t.Fatalf("service received ID %q, want %q", withID.GetText(), callerID)
 			}
 			if transport.name == "HTTP" {

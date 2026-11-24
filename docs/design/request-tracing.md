@@ -4,7 +4,7 @@
 
 Assistant 部署方通过 `-trace-endpoint` 或同名启动 JSON 项设置完整的 OTLP HTTP 追踪地址。每代进程构造自己的 exporter 和 tracer provider。空配置沿用默认启动。示例 Collector 地址是 `http://127.0.0.1:4318/v1/traces`。
 
-- HTTP、gRPC、SSE 和 go-micro v2 进入共享业务入口时创建服务端 span。有效 W3C `traceparent` 和 `tracestate` 延续上游链路，缺少有效父级时由 SDK 创建根 span。标准 Kronos HTTP 和 gRPC 客户端把当前 span 的 W3C 上下文交给下游。
+- HTTP、gRPC、SSE 和 go-micro v2 进入共享业务入口时创建服务端 span。有效 W3C `traceparent` 和 `tracestate` 延续上游链路，缺少有效父级时由 SDK 创建根 span。Kronos HTTP、gRPC 和 MicroRPC 客户端把当前 span 的 W3C 上下文交给下游。
 - span 以服务与方法标识，记录完成或失败。已恢复的业务 panic 结束为失败状态。失败使用固定描述，原始错误、提示词和业务正文留在其原有边界。日志记录有效的 `trace_id` 与 `span_id`，请求 ID 继续用于应用内关联。[请求恢复](rpc-handler-recovery.md)
 - 启动参数校验在取得监听器前完成。应用入口在进程关停完成后为批量 exporter 留最多 2 秒清理与发送，清理错误与应用退出错误一同返回。Collector 由部署方提供。
 

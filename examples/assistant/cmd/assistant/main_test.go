@@ -89,7 +89,7 @@ func TestAssistantProcessShutsDownOnSIGTERM(t *testing.T) {
 	const callerID = "assistant-process_01"
 	assertAssistantListeners(t, request.WithID(ctx, callerID), httpAddress, grpcAddress, sseAddress, microAddress)
 	assertAggregatedMetrics(t, ctx, httpEndpoint)
-	sendTracedRequests(t, ctx, httpEndpoint, grpcAddress, callerID)
+	sendTracedRequests(t, ctx, httpEndpoint, grpcAddress, "http://"+sseAddress, "http://"+microAddress, callerID)
 
 	if err := command.Process.Signal(syscall.SIGTERM); err != nil {
 		t.Fatal(err)
@@ -114,7 +114,7 @@ func TestAssistantProcessShutsDownOnSIGTERM(t *testing.T) {
 	}) || !hasLogRecord(output.Bytes(), func(record processLog) bool { return record.Event == "app_stopped" }) {
 		t.Fatal("process output is missing a correlated request, RPC failure, or shutdown event")
 	}
-	capturedTraces.assertAssistantTraces(t, output.Bytes())
+	capturedTraces.assertAssistantTraces(t, output.Bytes(), callerID)
 	for _, address := range addresses {
 		listener, err := net.Listen("tcp", address)
 		if err != nil {

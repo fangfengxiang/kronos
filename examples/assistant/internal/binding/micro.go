@@ -9,8 +9,10 @@ import (
 
 	wire "github.com/fangfengxiang/kronos/examples/assistant/internal/wire/kronos/assistant/v1"
 	"github.com/fangfengxiang/kronos/framework/localization"
+	"github.com/fangfengxiang/kronos/framework/request"
 	"github.com/fangfengxiang/kronos/framework/rpc"
 	"github.com/fangfengxiang/kronos/infra/microv2"
+	"github.com/fangfengxiang/kronos/infra/oteltrace"
 	kratoserrors "github.com/go-kratos/kratos/v3/errors"
 	kratoshttp "github.com/go-kratos/kratos/v3/transport/http"
 	"google.golang.org/protobuf/proto"
@@ -47,13 +49,21 @@ func NewMicroV2Client(ctx context.Context, endpoint string, defaultTimeout time.
 	if err != nil {
 		return nil, err
 	}
-	return newUnaryClient(func(ctx context.Context, request *wire.RunRequest) (*wire.RunResponse, error) {
-		payload, err := proto.Marshal(request)
+	return newUnaryClient(func(ctx context.Context, input *wire.RunRequest) (*wire.RunResponse, error) {
+		payload, err := proto.Marshal(input)
 		if err != nil {
 			return nil, err
 		}
-		decoded, err := nativeClient.CallWithMetadata(ctx, microV2Service, microV2Endpoint, payload,
-			microv2.RequestMetadata{AcceptLanguage: localization.AcceptLanguage(ctx)})
+		metadata := microv2.RequestMetadata{AcceptLanguage: localization.AcceptLanguage(ctx)}
+		oteltrace.Propagate(ctx, func(key, value string) {
+			switch key {
+			case "traceparent":
+				metadata.TraceParent = value
+			case "tracestate":
+				metadata.TraceState = value
+			}
+		})
+		decoded, err := nativeClient.CallWithRequestID(ctx, microV2Service, microV2Endpoint, payload, request.ID(ctx), metadata)
 		if err != nil {
 			var failure *microv2.Error
 			if errors.As(err, &failure) {
