@@ -114,7 +114,16 @@ return app.Run(ctx)
 
 ### 仓库外开发一元服务
 
-在业务仓库保留自己的 `go.mod`。使用固定提交的 Kronos 源码接入工作区。在业务模块目录执行以下命令，`kronos_source` 指向本机的 Kronos 源码目录。已有 `go.work` 时用 `go work use` 加入相同目录。
+在业务仓库保留自己的 `go.mod`。`kronos_revision` 设为已经通过发布态验收的 Kronos 提交。在业务模块目录安装运行时及所用注册中心。
+
+```sh
+go get "github.com/fangfengxiang/kronos/platform/kronos@$kronos_revision" \
+  "github.com/fangfengxiang/kronos/infra/etcd@$kronos_revision"
+```
+
+可从上一节生成的服务开始。将业务 Go 导入、Proto 的 `go_package` 前缀和 `buf.gen.yaml` 中的 `module`、`api_import` 改为业务模块路径。将 Kronos 插件的 `local` 改为 `["go", "run", "github.com/fangfengxiang/kronos/platform/protogen@<同一个提交>"]`。执行 `buf lint`、`buf generate`、`go mod tidy`、`go build ./cmd/...`。提交业务的 Proto、生成产物、应用代码和模块清单。[发布态验收](../design/go-verification.md#仓库外版本验收)
+
+需要联调 Kronos 源码时，`kronos_source` 指向本机的 Kronos 源码目录。已有 `go.work` 时用 `go work use` 加入相同目录。
 
 ```sh
 go work init . "$kronos_source/platform/protogen" "$kronos_source/platform/kronos" \
@@ -122,7 +131,7 @@ go work init . "$kronos_source/platform/protogen" "$kronos_source/platform/krono
   "$kronos_source/infra/etcd" "$kronos_source/infra/microv2"
 ```
 
-可从上一节生成的服务开始。将业务 Go 导入、Proto 的 `go_package` 前缀和 `buf.gen.yaml` 中的 `module`、`api_import` 改为业务模块路径。将模板中 Kronos 插件的 `local` 改为 `["go", "run", "github.com/fangfengxiang/kronos/platform/protogen"]`。执行 `buf lint`、`buf generate` 和 `go build ./cmd/...`，再按上一节用 gRPC 和 MicroRPC 调用生成的服务。工作区属于开发和构建环境。业务提交自己的 Proto、生成产物和应用代码。[仓库外生成与调用测试](../../platform/verify/scaffold_test.go)
+联调源码时将生成器调用中的提交后缀省去，以使用工作区成员。工作区属于开发和构建环境。用上一节的服务端和客户端参数即可验证两种协议。[仓库外生成与调用测试](../../platform/verify/scaffold_test.go)
 
 ## 生成 Assistant 协议
 

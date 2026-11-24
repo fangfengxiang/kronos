@@ -106,9 +106,42 @@ func TestIndependentProjectBuildsFreshService(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Setenv("GOWORK", filepath.Join(project, "go.work"))
+	generateIndependentProject(t, ctx, project, name, []string{"go", "run", kronosModule + "/platform/protogen"})
+	buildAndCallIndependentProject(t, ctx, project, name)
+}
+
+func TestPublishedProjectBuildsFreshService(t *testing.T) {
+	revision := os.Getenv("KRONOS_PUBLISHED_REVISION")
+	if revision == "" {
+		t.Skip("set KRONOS_PUBLISHED_REVISION to a commit accessible to the Go module proxy")
+	}
+	if _, err := exec.LookPath("buf"); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("GOWORK", "off")
+	project := t.TempDir()
+	name := "warehouse" + strings.ToLower(rand.Text()[:8])
+	ctx, cancel := context.WithTimeout(t.Context(), 3*time.Minute)
+	defer cancel()
+	if err := runCommand(ctx, project, "go", "mod", "init", "example.com/"+name); err != nil {
+		t.Fatal(err)
+	}
+	if err := runCommand(ctx, project, "go", "get",
+		kronosModule+"/platform/kronos@"+revision, kronosModule+"/infra/etcd@"+revision); err != nil {
+		t.Fatal(err)
+	}
+	generateIndependentProject(t, ctx, project, name, []string{"go", "run", kronosModule + "/platform/protogen@" + revision})
+	if err := runCommand(ctx, project, "go", "mod", "tidy"); err != nil {
+		t.Fatal(err)
+	}
+	buildAndCallIndependentProject(t, ctx, project, name)
+}
+
+func generateIndependentProject(t *testing.T, ctx context.Context, project, name string, pluginCommand []string) {
+	t.Helper()
 	if err := writeStarter(project, scaffoldNames{
-		Package: name, Service: protoServiceName(name), ImportPath: module,
-		PluginCommand: []string{"go", "run", kronosModule + "/platform/protogen"},
+		Package: name, Service: protoServiceName(name), ImportPath: "example.com/" + name,
+		PluginCommand: pluginCommand,
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -118,6 +151,10 @@ func TestIndependentProjectBuildsFreshService(t *testing.T) {
 	if err := generateTarget(ctx, project, project, "buf.gen.yaml"); err != nil {
 		t.Fatal(err)
 	}
+}
+
+func buildAndCallIndependentProject(t *testing.T, ctx context.Context, project, name string) {
+	t.Helper()
 	binaries := t.TempDir()
 	if err := runCommand(ctx, project, "go", "build", "-o", binaries, "./cmd/..."); err != nil {
 		t.Fatal(err)

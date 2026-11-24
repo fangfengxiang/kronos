@@ -70,6 +70,12 @@ jobs:
         env:
           KRONOS_ETCD_TEST_ADDRESS: "127.0.0.1:${{ job.services.etcd.ports['2379'] }}"
         run: go -C platform/verify test -count=1 -run '^Test(Scaffold|IndependentProject)BuildsFreshService$' -v ./...
+      - name: Generate and call a service using published Go modules
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        env:
+          KRONOS_PUBLISHED_REVISION: ${{ github.sha }}
+          KRONOS_ETCD_TEST_ADDRESS: "127.0.0.1:${{ job.services.etcd.ports['2379'] }}"
+        run: go -C platform/verify test -count=1 -run '^TestPublishedProjectBuildsFreshService$' -v ./...
 
   assistant-compose:
     runs-on: ubuntu-24.04

@@ -31,6 +31,17 @@ GOWORK=off go -C platform/verify test -count=1 -run '^Test(Scaffold|IndependentP
 
 三条命令依次验证真实租约、Order 及官方 go-micro v2 双向互通、仓库内脚手架与独立业务模块生成的全新服务。上游 SDK 在隔离的临时 Go 模块内构建。第三条使用锁定的 Buf 版本，基于同一个真实 etcd 运行生成的客户端和服务端。首次运行需要访问 Go 模块代理，或准备可用的缓存。[官方互通夹具](../../test/interop/microv2/testdata/etcdregistry/main.go) · [脚手架实测](service-scaffold.md#实测)
 
+### 仓库外版本验收
+
+`main` 推送的治理任务把该次提交传给版本验收。测试在临时业务模块关闭工作区，通过 Go 模块代理取得运行时、注册中心和生成器，随后用同一个真实 etcd 完成两种调用和停机。本地已准备 etcd 时，可用以下命令复跑指定版本。
+
+```sh
+KRONOS_PUBLISHED_REVISION="$kronos_revision" GOWORK=off \
+  go -C platform/verify test -count=1 -run '^TestPublishedProjectBuildsFreshService$' -v ./...
+```
+
+与其他治理用例一样，用 `KRONOS_ETCD_TEST_ADDRESS` 指定隔离实例。[调用测试](../../platform/verify/scaffold_test.go) · [设计与取舍](service-scaffold.md#仓库外业务项目)
+
 ## 外部 SDK 归属
 
 已接入 SDK 的导入前缀由对应适配模块持有。业务包可以使用 Kronos 模块、标准库以及公开 Protobuf 契约。参考服务的私有 `internal/binding` 与 `internal/wire` 负责 Kratos 和 gRPC 接线。Kronos 内部的 app、log、追踪和性能监听也有明确的 Kratos 导入归属。旧 go-micro SDK 由独立的互通夹具持有。[导入规则](../../platform/verify/dependencies.go) · [模块与依赖边界](../adr/0004-layer-and-module-boundaries.md)
